@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bagpipe note drill</title>
+<meta name="description" content="Flashcards, scales and crossing-noise practice for the Highland bagpipe chanter, with microphone note and timing detection.">
+<meta name="theme-color" content="#f3ece8">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Note Drill">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600&family=Jost:wght@300;400;500&family=Noto+Music&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="page">
+
+  <div class="header-block">
+    <div class="header">
+      <div class="title" id="heading">Bagpipe note drill</div>
+      <div class="counter" id="counter">1 / 9</div>
+    </div>
+    <div class="tab-group">
+      <button id="tabCards" class="tab">Flashcards</button>
+      <button id="tabPatterns" class="tab">Scales &amp; patterns</button>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── Flashcards view ─────────────────────────── -->
+  <div class="view" id="cardsView">
+
+    <div class="card" id="card">
+      <div class="card-inner" id="cardInner">
+
+        <div class="card-face card-front" id="cardFront">
+          <svg viewBox="0 0 180 104" style="width: 100%; height: auto; overflow: visible;">
+            <g stroke="#2a2120" stroke-width="1.1">
+              <line x1="10" y1="20" x2="170" y2="20"></line>
+              <line x1="10" y1="32" x2="170" y2="32"></line>
+              <line x1="10" y1="44" x2="170" y2="44"></line>
+              <line x1="10" y1="56" x2="170" y2="56"></line>
+              <line x1="10" y1="68" x2="170" y2="68"></line>
+            </g>
+            <text x="14" y="69" font-family="'Noto Music', serif" font-size="48" fill="#2a2120">&#119070;</text>
+            <line id="ledgerLine" x1="103" y1="8" x2="133" y2="8" stroke="#2a2120" stroke-width="1.1" style="display: none;"></line>
+            <ellipse id="noteHead" cx="118" cy="50" rx="8.4" ry="5.9" fill="#2a2120"></ellipse>
+            <rect id="noteStem" x="110" y="50" width="1.8" height="42" fill="#2a2120"></rect>
+          </svg>
+        </div>
+
+        <div class="card-face card-back">
+          <div class="note-name" id="noteName">Low A</div>
+          <div class="note-hint" id="noteHint">2nd space</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="controls">
+
+      <div class="transport">
+        <button id="btnPrev" class="circle-btn" style="width: 44px; height: 44px; font-size: 15px;">&#8592;</button>
+        <button id="btnPlay" class="pill-btn">Play</button>
+        <button id="btnNext" class="circle-btn" style="width: 44px; height: 44px; font-size: 15px;">&#8594;</button>
+        <button id="btnGame" class="pill-btn">Listening round</button>
+      </div>
+
+      <div class="bar">
+        <div class="bar-group">
+          <div class="bar-label">Tempo</div>
+          <button class="circle-btn js-bpm-down" style="width: 32px; height: 32px; font-size: 17px; line-height: 1;">&minus;</button>
+          <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" style="width: 130px; accent-color: #997373;">
+          <button class="circle-btn js-bpm-up" style="width: 32px; height: 32px; font-size: 17px; line-height: 1;">+</button>
+          <input class="bpm-value bpm-input js-bpm-val" type="text" inputmode="numeric" value="60" title="Click to type a tempo">
+        </div>
+        <div class="divider"></div>
+        <div class="bar-group" style="gap: 10px;">
+          <div class="bar-label">Beats / card</div>
+          <select id="beatsSelect" class="beats-select">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="4" selected>4</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+        <div class="divider"></div>
+        <button id="btnAutoFlip" class="pill-btn">Auto-flip on</button>
+        <div class="divider"></div>
+        <button class="pill-btn js-sound">Click on</button>
+      </div>
+
+      <div class="beat-dots" id="beatDots"></div>
+
+      <div class="bar listen-bar" style="padding: 12px 22px; gap: 22px;">
+        <button class="pill-btn js-listen">Listen</button>
+        <div class="heard-group">
+          <div class="heard-label js-heard">Off</div>
+          <div class="cents-track">
+            <div class="cents-center"></div>
+            <div class="cents-marker js-cents-marker"></div>
+          </div>
+          <div class="cents-label js-cents-label"></div>
+        </div>
+        <div class="divider" style="height: 24px;"></div>
+        <div class="bar-group" style="gap: 8px;">
+          <div class="bar-label">Low A</div>
+          <button class="circle-btn js-ref-down" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">&minus;</button>
+          <div class="ref-value">
+            <input class="ref-input js-ref" type="text" inputmode="numeric" value="476" title="Click to type a frequency">
+            <span>Hz</span>
+          </div>
+          <button class="circle-btn js-ref-up" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">+</button>
+        </div>
+      </div>
+
+      <div class="footnote">Click the card to flip &middot; &#8594; next &middot; &#8592; back &middot; space plays</div>
+
+    </div>
+
+  </div>
+
+  <!-- ──────────────────────── Scales & patterns view ─────────────────────── -->
+  <div class="view patterns-view" id="patternsView" style="display: none;">
+
+    <div id="patternGroups"></div>
+
+    <div class="pattern-card">
+
+      <div class="pattern-head">
+        <div class="pattern-head-left">
+          <div class="pattern-name" id="patternName">Full scale, up and down</div>
+          <div class="bar-label" id="patternMeta">17 notes</div>
+        </div>
+        <div class="streak-group">
+          <div class="bar-label">Clean runs</div>
+          <div class="streak-value" id="streakVal">0</div>
+        </div>
+      </div>
+
+      <div class="custom-builder" id="customBuilder" style="display: none;">
+        <div class="bar-label">Tap to build</div>
+        <div class="custom-notes" id="customNotes"></div>
+        <div style="flex: 1;"></div>
+        <button id="btnCustomUndo" class="mini-btn">Undo</button>
+        <button id="btnCustomClear" class="mini-btn">Clear</button>
+      </div>
+
+      <div class="staff-rows" id="staffRows"></div>
+
+      <div class="status-line" id="statusLine"></div>
+
+    </div>
+
+    <div class="pattern-controls">
+      <button id="btnPatternPlay" class="pill-btn" style="display: none;">Play</button>
+      <button id="btnPatternReset" class="ghost-btn" style="height: 44px; padding: 0 20px;">Restart</button>
+      <button id="btnLoop" class="pill-btn">Loop on</button>
+      <div class="tab-group">
+        <button id="tabFree" class="tab">Free tempo</button>
+        <button id="tabBeat" class="tab">On the beat</button>
+      </div>
+      <div class="bar tempo-bar" id="patternTempo" style="display: none; padding: 10px 18px; gap: 10px;">
+        <div class="bar-label">Tempo</div>
+        <button class="circle-btn js-bpm-down" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">&minus;</button>
+        <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" style="width: 110px; accent-color: #997373;">
+        <button class="circle-btn js-bpm-up" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">+</button>
+        <input class="bpm-input js-bpm-val" type="text" inputmode="numeric" value="60" style="font-size: 19px; width: 38px;" title="Click to type a tempo">
+      </div>
+      <button class="pill-btn js-sound">Click on</button>
+    </div>
+
+    <div class="bar listen-bar" style="padding: 12px 22px; gap: 22px;">
+      <button class="pill-btn js-listen">Listen</button>
+      <div class="heard-group">
+        <div class="heard-label js-heard">Off</div>
+        <div class="cents-track">
+          <div class="cents-center"></div>
+          <div class="cents-marker js-cents-marker"></div>
+        </div>
+        <div class="cents-label js-cents-label"></div>
+      </div>
+      <div class="divider" style="height: 24px;"></div>
+      <div class="bar-group" style="gap: 8px;">
+        <div class="bar-label">Low A</div>
+        <button class="circle-btn js-ref-down" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">&minus;</button>
+        <div class="ref-value">
+          <input class="ref-input js-ref" type="text" inputmode="numeric" value="476" title="Click to type a frequency">
+          <span>Hz</span>
+        </div>
+        <button class="circle-btn js-ref-up" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">+</button>
+      </div>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="history-panel" id="historyPanel" style="display: none;">
+      <div class="history-head">
+        <div class="bar-label">Recent runs</div>
+        <button id="btnClearHistory" class="mini-btn">Clear</button>
+      </div>
+      <div id="historyRows"></div>
+    </div>
+
+  </div>
+
+  <div class="overlay" id="resultOverlay" style="display: none; z-index: 45;">
+    <div class="modal" style="padding: 36px; gap: 26px;">
+
+      <div class="modal-head">
+        <div class="modal-title">Round complete</div>
+        <div class="modal-step" id="resultTempo"></div>
+      </div>
+
+      <div class="score-row">
+        <div class="score-big" id="scoreVal">0</div>
+        <div class="score-total">/ 20</div>
+        <div class="score-line" id="resultLine"></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="bar-label">Every card</div>
+        <div class="result-chips" id="resultChips"></div>
+      </div>
+
+      <div class="missed-line" id="missedLine" style="display: none;"></div>
+
+      <div class="dialog-actions" style="justify-content: flex-end;">
+        <button id="btnExitGame" class="ghost-btn">Back to drill</button>
+        <button id="btnPlayAgain" class="dark-btn">Play again</button>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="overlay" id="dialogOverlay" style="display: none; z-index: 40;">
+    <div class="modal">
+
+      <div class="modal-head">
+        <div class="modal-title" id="dialogTitle">Is the mic hearing you?</div>
+        <div class="modal-step" id="dialogStepLabel">Step 1 of 3</div>
+      </div>
+
+      <div class="modal-body" id="dialogBody"></div>
+
+      <div class="level-row">
+        <div class="bar-label" style="width: 46px;">Input</div>
+        <div class="level-track"><div class="level-fill" id="levelFill"></div></div>
+        <div class="level-label" id="levelLabel">Silent</div>
+      </div>
+
+      <div class="tune-panel" id="tunePanel" style="display: none;">
+        <div class="tune-col">
+          <div class="bar-label">Heard</div>
+          <div class="tune-value" id="calLabel">&mdash;</div>
+        </div>
+        <div class="tune-col" style="text-align: right;">
+          <div class="bar-label">Current setting</div>
+          <div class="tune-value" id="dialogRefA" style="color: #6f605a;">476 Hz</div>
+        </div>
+      </div>
+
+      <div class="scale-grid" id="scaleGrid" style="display: none;"></div>
+
+      <div class="dialog-actions" style="padding-top: 4px;">
+        <button id="btnDialogCancel" class="text-btn">Turn mic off</button>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button id="btnDialogSkip" class="ghost-btn">Skip</button>
+          <button id="btnDialogNext" class="dark-btn">Sounds right</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+<script>
+  // Registered relative to the page so the app works from a GitHub Pages
+  // subpath (…github.io/bagpipe-practice/) as well as from a domain root.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js", { scope: "./" })
+        .catch((err) => console.warn("Service worker registration failed:", err));
+    });
+  }
+</script>
+</body>
+</html>
