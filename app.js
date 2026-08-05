@@ -57,6 +57,23 @@
   const HISTORY_KEY = "bagpipe-drill-history";
   const SAVED_KEY = "bagpipe-drill-saved";
   const SAVED_PREFIX = "saved:";
+  const REF_KEY = "bagpipe-drill-ref-a";
+  // Low A of a practice chanter, which sounds about an octave below a pipe
+  // chanter (~470-480 Hz). Whatever you set is remembered from then on.
+  const DEFAULT_REF_HZ = 235;
+  const REF_MIN = 200;
+  const REF_MAX = 1000;
+
+  function loadRef() {
+    try {
+      const v = parseFloat(localStorage.getItem(REF_KEY));
+      return Number.isFinite(v) && v >= REF_MIN && v <= REF_MAX ? Math.round(v) : DEFAULT_REF_HZ;
+    } catch (err) { return DEFAULT_REF_HZ; }
+  }
+
+  function saveRef() {
+    try { localStorage.setItem(REF_KEY, String(state.refA)); } catch (err) { /* storage unavailable */ }
+  }
 
   function loadSaved() {
     try {
@@ -145,7 +162,7 @@
     autoFlip: true,
     beat: 0,
     listening: false,
-    refA: 476,
+    refA: DEFAULT_REF_HZ,
     micError: "",
     heard: null,
     cents: 0,
@@ -179,6 +196,7 @@
   };
   state.history = loadHistory();
   state.saved = loadSaved();
+  state.refA = loadRef();
 
   let ac = null;
   let timer = null;
@@ -872,9 +890,9 @@
     }
 
     if (state.dialogStep === 2) {
-      // Accept anything in the reference range (200–1000 Hz) so both pipe
-      // chanters (~476) and octave-lower practice chanters (~238) calibrate.
-      if (f > 200 && f < 1000) {
+      // Accept anything in the reference range so both pipe chanters (~476 Hz)
+      // and octave-lower practice chanters (~235 Hz) calibrate.
+      if (f > REF_MIN && f < REF_MAX) {
         calBuf.push(f);
         if (calBuf.length > 15) calBuf.shift();
         if (calBuf.length >= 6) {
@@ -981,11 +999,12 @@
     }
   }
 
-  // Wide range so the reference can sit at chanter pitch (~476), concert A
-  // (440), or an octave down (~238) when calibrating against a voice.
+  // Wide range so the reference can sit at practice-chanter pitch (~235),
+  // pipe-chanter pitch (~476), or concert A (440).
   function setRef(v) {
     if (!Number.isFinite(v)) { render(); return; }
-    state.refA = Math.min(1000, Math.max(200, Math.round(v)));
+    state.refA = Math.min(REF_MAX, Math.max(REF_MIN, Math.round(v)));
+    saveRef();
     render();
   }
 
@@ -1378,6 +1397,7 @@
       if (!s.calHz) return;
       stableName = null; stableCount = 0;
       s.refA = s.calHz;
+      saveRef();
       s.dialogStep = 3;
       s.checkIdx = 0;
       s.judged = null;

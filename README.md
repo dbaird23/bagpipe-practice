@@ -41,6 +41,9 @@ chanter pitch. Set it in the calibration step, or type the frequency directly.
 Range is 200–1000 Hz: a pipe chanter's Low A is usually around 470–480 Hz, and a
 practice chanter — which sounds roughly an octave lower — around 235–240 Hz.
 
+The default is **235 Hz** (practice chanter). Whatever you set is remembered in
+the browser, so it only needs adjusting once per device.
+
 > If notes read an octave off, the Low A reference is set to the wrong octave.
 
 ## Running locally
