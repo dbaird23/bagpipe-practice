@@ -670,13 +670,76 @@ a:hover { color: #2a2120; }
 
 .custom-builder {
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #faf6f4;
+  border: 1px solid #eee5e0;
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.custom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.name-input {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-size: 13.5px;
+  color: #2a2120;
+  background: #ffffff;
+  border: 1px solid #dccfc8;
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 34px;
+  min-width: 220px;
+  flex: 1;
+  max-width: 340px;
+}
+
+.name-input:focus {
+  outline: none;
+  border-color: #997373;
+}
+
+.name-input::placeholder { color: #c2b4ad; }
+
+.mini-btn-dark {
+  border-color: #2a2120;
+  background: #2a2120;
+  color: #fff;
+}
+
+.mini-btn-dark:hover { border-color: #2a2120; }
+
+.mini-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.save-hint {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #7d9163;
+}
+
+.saved-bar {
+  display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
   background: #faf6f4;
   border: 1px solid #eee5e0;
   border-radius: 10px;
-  padding: 14px 16px;
+  padding: 12px 16px;
+}
+
+.saved-name {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 19px;
+  color: #2a2120;
 }
 
 .custom-notes {

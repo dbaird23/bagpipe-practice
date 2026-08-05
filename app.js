@@ -55,6 +55,28 @@
   const EARLY_CAPTURE = 0.5;
   const HISTORY_MAX = 12;
   const HISTORY_KEY = "bagpipe-drill-history";
+  const SAVED_KEY = "bagpipe-drill-saved";
+  const SAVED_PREFIX = "saved:";
+
+  function loadSaved() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
+      if (!Array.isArray(arr)) return [];
+      // keep only well-formed entries — a corrupt store shouldn't break the app
+      return arr.filter((s) =>
+        s && typeof s.id === "string" && typeof s.name === "string" &&
+        Array.isArray(s.seq) && s.seq.every((n) => Number.isInteger(n) && n >= 0 && n < NOTES.length)
+      );
+    } catch (err) { return []; }
+  }
+
+  function saveSaved() {
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(state.saved)); } catch (err) { /* storage unavailable */ }
+  }
+
+  function newId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
 
   function loadHistory() {
     try {
@@ -152,9 +174,11 @@
     runDone: false,
     streak: 0,
     lastRun: null,
-    history: []
+    history: [],
+    saved: []
   };
   state.history = loadHistory();
+  state.saved = loadSaved();
 
   let ac = null;
   let timer = null;
@@ -176,6 +200,13 @@
   // container's innerHTML replaces its child nodes, and a button destroyed
   // between mousedown and mouseup never fires a click — so each block is only
   // rebuilt when the content it depends on has actually changed.
+  // Pattern names are typed by the user and end up inside innerHTML.
+  function esc(str) {
+    return String(str).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+  }
+
   const htmlCache = {};
   function setHtml(node, key, sig, build) {
     if (htmlCache[key] === sig) return;
@@ -186,6 +217,10 @@
   let scored = false;
   let calBuf = [];
   let frame = 0;
+  let deleteArmed = false;
+  let deleteTimer = null;
+  let hintTimer = null;
+  let saveHint = "";
 
   const el = (id) => document.getElementById(id);
   const all = (sel) => Array.from(document.querySelectorAll(sel));
@@ -219,6 +254,14 @@
     customNotes: el("customNotes"),
     btnCustomUndo: el("btnCustomUndo"),
     btnCustomClear: el("btnCustomClear"),
+    customName: el("customName"),
+    btnCustomSave: el("btnCustomSave"),
+    saveHint: el("saveHint"),
+    savedBar: el("savedBar"),
+    savedName: el("savedName"),
+    savedHint: el("savedHint"),
+    btnSavedEdit: el("btnSavedEdit"),
+    btnSavedDelete: el("btnSavedDelete"),
     staffRows: el("staffRows"),
     statusLine: el("statusLine"),
     btnPatternPlay: el("btnPatternPlay"),
@@ -267,11 +310,26 @@
     refDowns: all(".js-ref-down")
   };
 
+  function savedById(id) {
+    return state.saved.find((s) => s.id === id) || null;
+  }
+
+  // The selected pattern is either a built-in, the scratch "custom" builder, or
+  // one of the user's saved patterns (id "saved:<id>").
+  function currentSaved() {
+    if (state.patternId.indexOf(SAVED_PREFIX) !== 0) return null;
+    return savedById(state.patternId.slice(SAVED_PREFIX.length));
+  }
+
   function currentPattern() {
+    const s = currentSaved();
+    if (s) return { id: state.patternId, group: "Saved", label: s.name, name: s.name, seq: "", isSaved: true };
     return PATTERNS.find((x) => x.id === state.patternId) || PATTERNS[0];
   }
 
   function seq() {
+    const s = currentSaved();
+    if (s) return s.seq.slice();
     const p = currentPattern();
     return p.id === "custom" ? state.custom.slice() : seqOf(p.seq);
   }
@@ -311,7 +369,60 @@
     stopPatternClock();
     state.patternId = id;
     state.pPlaying = false;
+    deleteArmed = false;
+    saveHint = "";
     resetRun();
+  }
+
+  // Save the scratch pattern under a name. Re-using an existing name updates
+  // that pattern rather than making a duplicate.
+  function saveCustom() {
+    const name = dom.customName.value.trim();
+    if (!name || !state.custom.length) return;
+    const existing = state.saved.find((s) => s.name.toLowerCase() === name.toLowerCase());
+    let id;
+    if (existing) {
+      existing.seq = state.custom.slice();
+      existing.name = name;
+      id = existing.id;
+      saveHint = "Updated";
+    } else {
+      id = newId();
+      state.saved = [{ id: id, name: name, seq: state.custom.slice() }].concat(state.saved);
+      saveHint = "Saved";
+    }
+    saveSaved();
+    const hint = saveHint;
+    pickPattern(SAVED_PREFIX + id);   // clears any previous hint
+    saveHint = hint;
+    render();
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(() => { saveHint = ""; render(); }, 2000);
+  }
+
+  function editSaved() {
+    const s = currentSaved();
+    if (!s) return;
+    state.custom = s.seq.slice();
+    dom.customName.value = s.name;
+    pickPattern("custom");
+  }
+
+  function deleteSaved() {
+    const s = currentSaved();
+    if (!s) return;
+    // first click arms, second confirms — no dialog, no accidents
+    if (!deleteArmed) {
+      deleteArmed = true;
+      clearTimeout(deleteTimer);
+      deleteTimer = setTimeout(() => { deleteArmed = false; render(); }, 3500);
+      render();
+      return;
+    }
+    state.saved = state.saved.filter((x) => x.id !== s.id);
+    saveSaved();
+    deleteArmed = false;
+    pickPattern("scale");
   }
 
   function resetRun() {
@@ -907,20 +1018,27 @@
     const pat = currentPattern();
     const pseq = seq();
 
-    // pattern picker groups
+    // pattern picker groups, with the user's saved patterns appended
     const groups = [];
     PATTERNS.forEach((p) => {
       let g = groups.find((x) => x.label === p.group);
       if (!g) { g = { label: p.group, items: [] }; groups.push(g); }
-      g.items.push(p);
+      g.items.push({ id: p.id, label: p.label });
     });
+    if (s.saved.length) {
+      groups.push({
+        label: "Saved",
+        items: s.saved.map((v) => ({ id: SAVED_PREFIX + v.id, label: v.name }))
+      });
+    }
     // built once; selection is applied below by restyling the existing buttons
     // so the nodes stay clickable while the mic is re-rendering the page
-    setHtml(dom.patternGroups, "picker", "built", () => groups.map((g) =>
-      '<div class="pattern-group-row"><div class="pattern-group-label">' + g.label +
+    const pickerSig = s.saved.map((v) => v.id + ":" + v.name).join(",");
+    setHtml(dom.patternGroups, "picker", pickerSig, () => groups.map((g) =>
+      '<div class="pattern-group-row"><div class="pattern-group-label">' + esc(g.label) +
       '</div><div class="pattern-group-items">' +
       g.items.map((p) =>
-        '<button class="pattern-pick" data-pattern="' + p.id + '">' + p.label + "</button>"
+        '<button class="pattern-pick" data-pattern="' + esc(p.id) + '">' + esc(p.label) + "</button>"
       ).join("") + "</div></div>"
     ).join(""));
     dom.patternGroups.querySelectorAll("[data-pattern]").forEach((b) => {
@@ -939,6 +1057,25 @@
     setHtml(dom.customNotes, "customNotes", "built", () => NOTES.map((n, i) =>
       '<button class="custom-note-btn" data-add="' + i + '">' + n.name + "</button>"
     ).join(""));
+
+    if (pat.id === "custom") {
+      const named = dom.customName.value.trim().length > 0;
+      dom.btnCustomSave.disabled = !named || !pseq.length;
+      dom.btnCustomSave.textContent =
+        state.saved.some((v) => v.name.toLowerCase() === dom.customName.value.trim().toLowerCase())
+          ? "Update" : "Save";
+      dom.saveHint.textContent = saveHint;
+    }
+
+    const savedPat = currentSaved();
+    dom.savedBar.style.display = savedPat ? "flex" : "none";
+    if (savedPat) {
+      dom.savedName.textContent = savedPat.name;
+      dom.savedHint.textContent = saveHint;
+      dom.btnSavedDelete.textContent = deleteArmed ? "Tap again to delete" : "Delete";
+      dom.btnSavedDelete.style.color = deleteArmed ? "#a85a4e" : "";
+      dom.btnSavedDelete.style.borderColor = deleteArmed ? "#e0bdb7" : "";
+    }
 
     // staff rows
     const isBeatMode = s.timing === "beat";
@@ -1053,7 +1190,7 @@
       const onBeat = h.beat ? h.on + " / " + h.total + " on beat" : "free tempo";
       return '<div class="history-row">' +
         '<div class="history-dot" style="background: ' + (h.clean ? "#7d9163" : "#e0d5cf") + ';"></div>' +
-        '<div class="history-name">' + h.pattern + "</div>" +
+        '<div class="history-name">' + esc(h.pattern) + "</div>" +
         '<div class="history-when">' + h.bpm + " bpm · " + when + "</div>" +
         '<div class="history-stat history-correct">' + h.correct + " / " + h.total + " correct</div>" +
         '<div class="history-stat history-onbeat" style="color: ' +
@@ -1313,6 +1450,11 @@
   });
   dom.btnCustomUndo.addEventListener("click", () => { state.custom = state.custom.slice(0, -1); resetRun(); });
   dom.btnCustomClear.addEventListener("click", () => { state.custom = []; resetRun(); });
+  dom.customName.addEventListener("input", render);
+  dom.customName.addEventListener("keydown", (e) => { if (e.key === "Enter") saveCustom(); });
+  dom.btnCustomSave.addEventListener("click", saveCustom);
+  dom.btnSavedEdit.addEventListener("click", editSaved);
+  dom.btnSavedDelete.addEventListener("click", deleteSaved);
   dom.btnPatternPlay.addEventListener("click", togglePattern);
   dom.btnPatternReset.addEventListener("click", () => { stopPatternClock(); state.pPlaying = false; resetRun(); });
   dom.btnLoop.addEventListener("click", () => { state.loop = !state.loop; render(); });

@@ -144,11 +144,28 @@
       </div>
 
       <div class="custom-builder" id="customBuilder" style="display: none;">
-        <div class="bar-label">Tap to build</div>
-        <div class="custom-notes" id="customNotes"></div>
+        <div class="custom-row">
+          <div class="bar-label">Tap to build</div>
+          <div class="custom-notes" id="customNotes"></div>
+          <div style="flex: 1;"></div>
+          <button id="btnCustomUndo" class="mini-btn">Undo</button>
+          <button id="btnCustomClear" class="mini-btn">Clear</button>
+        </div>
+        <div class="custom-row">
+          <div class="bar-label">Name</div>
+          <input id="customName" class="name-input" type="text" maxlength="40" placeholder="Give it a name to save it">
+          <button id="btnCustomSave" class="mini-btn mini-btn-dark">Save</button>
+          <div class="save-hint" id="saveHint"></div>
+        </div>
+      </div>
+
+      <div class="saved-bar" id="savedBar" style="display: none;">
+        <div class="bar-label">Saved pattern</div>
+        <div class="saved-name" id="savedName"></div>
+        <div class="save-hint" id="savedHint"></div>
         <div style="flex: 1;"></div>
-        <button id="btnCustomUndo" class="mini-btn">Undo</button>
-        <button id="btnCustomClear" class="mini-btn">Clear</button>
+        <button id="btnSavedEdit" class="mini-btn">Edit</button>
+        <button id="btnSavedDelete" class="mini-btn">Delete</button>
       </div>
 
       <div class="staff-rows" id="staffRows"></div>
