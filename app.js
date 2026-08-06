@@ -278,7 +278,6 @@
   let pTimer = null;
   let swapTimer = null;
   let wrongTimer = null;
-  let runTimer = null;
   let raf = null;
   let stream = null;
   let analyser = null;
@@ -713,7 +712,6 @@
   }
 
   function resetRun() {
-    clearTimeout(runTimer);
     const len = seq().length;
     stableName = null;
     stableCount = 0;
@@ -754,6 +752,16 @@
       stableCount = 0;
       if (i + 1 >= s.length) {
         state.pStates = states;
+        if (state.loop) {
+          // Score the pass, then go straight back to the top on the very next
+          // beat — the count-in belongs to pressing Play, not to every lap.
+          scoreRun(states);
+          resetRun();
+          beatAt = Date.now();
+          pendingEarly = null;
+          tick(true);           // accent the downbeat of the new pass
+          return;
+        }
         finishRun(states);
         return;
       }
@@ -808,7 +816,6 @@
 
   function togglePattern() {
     if (state.pPlaying) {
-      clearTimeout(runTimer);
       stopPatternClock();
       stopDemo();
       state.pPlaying = false;
@@ -820,8 +827,9 @@
     }
   }
 
-  function finishRun(states) {
-    const st = states || state.pStates;
+  // Score a completed pass and log it. Kept separate from stopping, so a loop
+  // can record the pass and carry straight on without breaking the pulse.
+  function scoreRun(st) {
     const allHit = st.length > 0 && st.every((x) => x === "done");
     let early = 0, late = 0, on = 0;
     state.pOffset.forEach((o, i) => {
@@ -833,10 +841,6 @@
     });
     // a clean run also has to be in time
     const clean = allHit && early === 0 && late === 0;
-    stopPatternClock();
-    state.runDone = true;
-    state.pPlaying = false;
-    state.pStates = st;
     state.streak = clean ? state.streak + 1 : 0;
     state.lastRun = {
       clean,
@@ -846,30 +850,27 @@
       missed: st.filter((x) => x === "missed").length
     };
 
-    const missed = state.lastRun.missed;
     state.history = [{
       pattern: currentPattern().name,
       bpm: state.bpm,
       beat: true,
       total: st.length,
-      correct: st.length - missed,
+      correct: st.length - state.lastRun.missed,
       on: on,
       at: Date.now(),
       clean: clean
     }].concat(state.history).slice(0, HISTORY_MAX);
     saveHistory();
+  }
+
+  function finishRun(states) {
+    const st = states || state.pStates;
+    scoreRun(st);
+    stopPatternClock();
+    state.runDone = true;
+    state.pPlaying = false;
+    state.pStates = st;
     render();
-    clearTimeout(runTimer);
-    // With loop off the finished run stays on screen so the marks can be read;
-    // Restart (or Play) clears it.
-    if (!state.loop) return;
-    runTimer = setTimeout(() => {
-      if (state.view !== "patterns" || !state.runDone) return;
-      resetRun();
-      state.pPlaying = true;
-      startPatternClock(true);
-      render();
-    }, 2200);
   }
 
   function patternJudge(name) {
