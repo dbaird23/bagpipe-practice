@@ -314,6 +314,12 @@
   let demoOsc = null;
   let demoGain = null;
   let demoTimers = [];
+  let demoSchedTimer = null;
+  let demoRestartTimer = null;
+  let demoStart = 0;    // audio-clock time the first pass began
+  let demoNextAt = 0;   // audio-clock time the next pass should begin
+  let demoBeat = 1;     // seconds a note lasts, fixed for the session
+  let demoCycles = 0;
   let deleteArmed = false;
   let deleteTimer = null;
   let hintTimer = null;
@@ -470,9 +476,62 @@
     return state.refA * Math.pow(2, NOTES[i].semis / 12);
   }
 
+  const DEMO_LOOKAHEAD = 1.2;  // seconds of audio scheduled in advance
+  const DEMO_GAIN = 0.16;
+
+  // Lay one pass of the pattern onto the running oscillator, starting at the
+  // given audio-clock time. Gracenotes take their time from the front of the
+  // note, so the beat lands on the first sound of a movement.
+  function scheduleCycle(startAt, sq, beat) {
+    sq.forEach((st, i) => {
+      const graces = st.g || [];
+      const gd = Math.min(0.038, beat / (graces.length + 2));
+      let at = startAt + i * beat;
+      graces.forEach((gi) => {
+        demoOsc.frequency.setValueAtTime(noteHz(gi), at);
+        at += gd;
+      });
+      demoOsc.frequency.setValueAtTime(noteHz(st.n), at);
+    });
+  }
+
+  // Runs every frame or so: keeps the staff highlight in step with the audio
+  // clock, and tops up the schedule so a loop never gaps at the seam.
+  function demoTick() {
+    if (!state.demoing || !demoOsc) return;
+    const sq = steps();
+    if (!sq.length) { stopDemo(); return; }
+    const total = sq.length * demoBeat;
+
+    const elapsed = ac.currentTime - demoStart;
+    if (elapsed >= 0) {
+      const idx = Math.min(sq.length - 1, Math.floor((elapsed % total) / demoBeat));
+      if (idx !== state.demoIdx) { state.demoIdx = idx; render(); }
+    }
+
+    while (demoNextAt < ac.currentTime + DEMO_LOOKAHEAD) {
+      // Loop off, or switched off mid-pass: ride out the pass already scheduled.
+      if (demoCycles > 0 && !state.loop) { finishDemoAt(demoNextAt); return; }
+      scheduleCycle(demoNextAt, sq, demoBeat);
+      demoNextAt += total;
+      demoCycles++;
+    }
+  }
+
+  function finishDemoAt(t) {
+    if (demoSchedTimer) { clearInterval(demoSchedTimer); demoSchedTimer = null; }
+    try {
+      demoGain.gain.setValueAtTime(DEMO_GAIN, Math.max(ac.currentTime, t - 0.05));
+      demoGain.gain.exponentialRampToValueAtTime(0.0001, t);
+      demoOsc.stop(t + 0.05);
+    } catch (err) { /* already stopping */ }
+    demoTimers.push(setTimeout(stopDemo, (t - ac.currentTime) * 1000 + 120));
+  }
+
   // Play the selected pattern back. A chanter never stops sounding, so this is
   // one continuous reed tone whose pitch steps at each note — which is also
-  // exactly how gracenotes work: brief flicks to another pitch and back.
+  // exactly how gracenotes work: brief flicks to another pitch and back. One
+  // oscillator runs for the whole session so a loop has no seam to hear.
   function playDemo() {
     const sq = steps();
     if (!sq.length) return;
@@ -483,9 +542,10 @@
     let ctx;
     try { ctx = audio(); } catch (err) { return; }
 
-    const beat = 60 / state.bpm;
-    const t0 = ctx.currentTime + 0.12;
-    const total = sq.length * beat;
+    demoBeat = 60 / state.bpm;
+    demoStart = ctx.currentTime + 0.12;
+    demoNextAt = demoStart;
+    demoCycles = 0;
 
     const osc = ctx.createOscillator();
     osc.type = "sawtooth";                 // a double reed is rich in harmonics
@@ -496,42 +556,23 @@
     const g = ctx.createGain();
     g.gain.value = 0.0001;
     osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+    g.gain.setValueAtTime(0.0001, demoStart);
+    g.gain.exponentialRampToValueAtTime(DEMO_GAIN, demoStart + 0.035);
+    osc.start(demoStart);
 
-    sq.forEach((st, i) => {
-      const startAt = t0 + i * beat;
-      const graces = st.g || [];
-      // gracenotes take their time from the front of the note
-      const gd = Math.min(0.038, beat / (graces.length + 2));
-      let at = startAt;
-      graces.forEach((gi) => {
-        osc.frequency.setValueAtTime(noteHz(gi), at);
-        at += gd;
-      });
-      osc.frequency.setValueAtTime(noteHz(st.n), at);
-    });
-
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.035);
-    g.gain.setValueAtTime(0.16, t0 + total - 0.05);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + total);
-    osc.start(t0);
-    osc.stop(t0 + total + 0.05);
     demoOsc = osc;
     demoGain = g;
-
-    // follow along on the staff
-    const lead = (t0 - ctx.currentTime) * 1000;
-    sq.forEach((st, i) => {
-      demoTimers.push(setTimeout(() => { state.demoIdx = i; render(); }, lead + i * beat * 1000));
-    });
-    demoTimers.push(setTimeout(stopDemo, lead + total * 1000 + 120));
-
     state.demoing = true;
     state.demoIdx = -1;
+
+    demoTick();                                   // schedule the first pass now
+    demoSchedTimer = setInterval(demoTick, 60);
     render();
   }
 
   function stopDemo() {
+    if (demoSchedTimer) { clearInterval(demoSchedTimer); demoSchedTimer = null; }
+    clearTimeout(demoRestartTimer);
     demoTimers.forEach(clearTimeout);
     demoTimers = [];
     if (demoOsc) {
@@ -1252,6 +1293,12 @@
     // Rebuilding the clock mid-run keeps the run going; if the tempo changed
     // during a count-in, count in again at the new tempo.
     if (state.pPlaying && state.timing === "beat") startPatternClock(state.countIn > 0);
+    // Playback runs at a fixed beat, so a tempo change restarts it. Debounced
+    // so dragging the slider doesn't stutter.
+    if (state.demoing) {
+      clearTimeout(demoRestartTimer);
+      demoRestartTimer = setTimeout(playDemo, 200);
+    }
   }
 
   const roundBtn = "height: 44px; padding: 0 22px; border-radius: 999px; font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; cursor: pointer; border: 1px solid ";
@@ -1476,7 +1523,9 @@
     const nowName = pseq.length && !s.runDone ? (NOTES[pseq[s.pIdx]] || NOTES[0]).name : "";
     let statusLine;
     if (!pseq.length) statusLine = "Tap notes above to build a pattern.";
-    else if (s.demoing) statusLine = "Playing it back at " + s.bpm + " bpm, tuned to your Low A.";
+    else if (s.demoing) statusLine = s.loop
+      ? "Looping at " + s.bpm + " bpm, tuned to your Low A — play along. Nothing is scored while it plays."
+      : "Playing it back once at " + s.bpm + " bpm, tuned to your Low A. Turn Loop on to practise along.";
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
     else if (!s.listening) statusLine = "Turn the mic on and the notes will fill in as you play them.";
     else if (s.runDone) {
@@ -1840,7 +1889,12 @@
   dom.btnPatternPlay.addEventListener("click", togglePattern);
   dom.btnPatternReset.addEventListener("click", () => { stopPatternClock(); state.pPlaying = false; resetRun(); });
   dom.btnHear.addEventListener("click", () => (state.demoing ? stopDemo() : playDemo()));
-  dom.btnLoop.addEventListener("click", () => { state.loop = !state.loop; render(); });
+  dom.btnLoop.addEventListener("click", () => {
+    state.loop = !state.loop;
+    // turned back on while the last pass was already winding down — start over
+    if (state.demoing && state.loop && !demoSchedTimer) playDemo();
+    render();
+  });
   dom.btnClearHistory.addEventListener("click", () => { state.history = []; saveHistory(); render(); });
   dom.tabFree.addEventListener("click", () => { stopPatternClock(); state.timing = "free"; state.pPlaying = false; resetRun(); });
   dom.tabBeat.addEventListener("click", () => { stopPatternClock(); state.timing = "beat"; state.pPlaying = false; resetRun(); });

@@ -42,7 +42,9 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   or amber (late), with the offset in milliseconds
 - A red dot marks a stray note sounded on the way into a note
 - **Hear it** plays the pattern back so you know what you are aiming for —
-  gracenotes and all — as one continuous reed tone pitched to your own Low A
+  gracenotes and all — as one continuous reed tone pitched to your own Low A.
+  With **Loop** on it repeats seamlessly so you can play along; nothing is
+  scored while it plays, since the mic would otherwise hear the app itself
 - Clean-run streak, optional looping, and a persisted log of recent runs showing
   notes correct and notes on beat
 
