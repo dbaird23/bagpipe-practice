@@ -44,6 +44,38 @@
     { id: "custom", group: "Your own", label: "Custom", name: "Custom pattern", seq: "" }
   ];
 
+  // ── Embellishments ──
+  // Each movement is written as the short sounds that lead into the melody
+  // note, drawn as one beamed group of gracenotes, then the melody note itself.
+  // Steps follow the Piper's Dojo embellishment guide.
+  const NI = { LG: 0, LA: 1, B: 2, C: 3, D: 4, E: 5, F: 6, HG: 7, HA: 8 };
+
+  const plain = (x) => ({ n: x, g: [] });
+  // High G gracenote to X, then D gracenote on X — or the next note up once X
+  // has reached D, since the second gracenote must sit above the note.
+  const doubling = (x) => ({ n: x, g: [NI.HG, x, x < NI.D ? NI.D : x + 1], move: "doubling" });
+  // Low G, D gracenote on Low G, then the note
+  const grip = (x) => ({ n: x, g: [NI.LG, NI.D, NI.LG], move: "grip" });
+  // a grip with an E gracenote onto the note, so the note must be below E
+  const taorluath = (x) => ({ n: x, g: [NI.LG, NI.D, NI.LG, NI.E], move: "taorluath" });
+  // light D throw: Low G, D gracenote to C, then D
+  const dThrow = () => ({ n: NI.D, g: [NI.LG, NI.D, NI.C], move: "D throw" });
+  // Low A birl: Low A with two Low G strikes
+  const birl = () => ({ n: NI.LA, g: [NI.LG, NI.LA, NI.LG], move: "birl" });
+
+  PATTERNS.splice(PATTERNS.length - 1, 0,
+    { id: "emb-doubling", group: "Embellishments", label: "Doublings", name: "Doublings, Low G up to F",
+      steps: [NI.LG, NI.LA, NI.B, NI.C, NI.D, NI.E, NI.F].map(doubling) },
+    { id: "emb-grip", group: "Embellishments", label: "Grips", name: "Grip to each note",
+      steps: [NI.LA, NI.B, NI.C, NI.D, NI.E].map(grip) },
+    { id: "emb-taorluath", group: "Embellishments", label: "Taorluath", name: "Taorluath to each note",
+      steps: [NI.LG, NI.LA, NI.B, NI.C, NI.D].map(taorluath) },
+    { id: "emb-throw", group: "Embellishments", label: "D throw", name: "Light D throw",
+      steps: [plain(NI.LG), dThrow(), plain(NI.LA), dThrow(), plain(NI.B), dThrow()] },
+    { id: "emb-birl", group: "Embellishments", label: "Birl", name: "Birl on Low A",
+      steps: [plain(NI.B), birl(), plain(NI.B), birl(), plain(NI.C), birl()] }
+  );
+
   const GAME_LENGTH = 20;
   // Beats of metronome before an on-the-beat pattern run starts, so there is
   // time to get the chanter up and the tempo in your head.
@@ -352,29 +384,30 @@
     return PATTERNS.find((x) => x.id === state.patternId) || PATTERNS[0];
   }
 
-  function seq() {
+  // Every pattern resolves to a list of steps: a melody note plus the
+  // gracenotes that lead into it (empty for a plain note).
+  function steps() {
     const s = currentSaved();
-    if (s) return s.seq.slice();
+    if (s) return s.seq.map(plain);
     const p = currentPattern();
-    return p.id === "custom" ? state.custom.slice() : seqOf(p.seq);
-  }
-
-  // Index of the gracenote sitting on step i, or -1. A gracenote can only be
-  // played on a note below its own pitch, so anything at or above the melody
-  // note is dropped rather than drawn as something unplayable.
-  function graceAt(i) {
-    const p = currentPattern();
-    if (!p.grace) return -1;
+    if (p.id === "custom") return state.custom.map(plain);
+    if (p.steps) return p.steps;
+    const notes = seqOf(p.seq);
+    if (!p.grace) return notes.map(plain);
     const g = LET[p.grace];
-    if (g === undefined) return -1;
-    const notes = seq();
-    if (i < 0 || i >= notes.length) return -1;
-    return g > notes[i] ? g : -1;
+    // a gracenote can only be played on a note below its own pitch
+    return notes.map((n) => ({ n: n, g: g !== undefined && g > n ? [g] : [] }));
   }
 
-  function patternHasGrace() {
-    const p = currentPattern();
-    return !!p.grace;
+  function seq() { return steps().map((st) => st.n); }
+
+  function gracesAt(i) {
+    const st = steps()[i];
+    return st && st.g ? st.g : [];
+  }
+
+  function maxGraceLen() {
+    return steps().reduce((m, st) => Math.max(m, st.g ? st.g.length : 0), 0);
   }
 
   function tick(accent) {
@@ -668,10 +701,8 @@
     // A gracenote belongs to the note it decorates, so hearing it is correct
     // playing, not a stray. It may land in this note's window or in the tail of
     // the previous one, so both this step's and the next step's are allowed.
-    const gHere = graceAt(i);
-    const gNext = graceAt(i + 1);
-    if ((gHere >= 0 && name === NOTES[gHere].name) ||
-        (gNext >= 0 && name === NOTES[gNext].name)) return;
+    const allowed = gracesAt(i).concat(gracesAt(i + 1));
+    if (allowed.some((g) => NOTES[g].name === name)) return;
 
     // the next note, sounded just before its beat, is an early attack rather
     // than a stray — hold it and score it when that beat arrives
@@ -1065,20 +1096,49 @@
     return on ? "background: #2a2120; color: #fff;" : "background: none; color: #a99891;";
   }
 
-  // A single gracenote: small head, thin stem, and the three flags that mark it
-  // as a thirty-second note — the way single gracenotes are always written.
+  const G_RX = 4.4, G_RY = 3.1, G_STEM_W = 1.15;
+  const G_SPACING = 10;   // gap between gracenotes inside a beamed group
+  const G_STEM_LEN = 25;  // shortest stem, measured from the highest head
+
+  function graceHead(gx, gy, fill) {
+    return '<ellipse cx="' + gx + '" cy="' + gy + '" rx="' + G_RX + '" ry="' + G_RY +
+      '" transform="rotate(-22 ' + gx + " " + gy + ')" fill="' + fill + '"></ellipse>';
+  }
+
+  // A lone gracenote carries three flags, marking it as a thirty-second note.
   function graceSvg(gx, gy, fill) {
-    const rx = 4.4, ry = 3.1;
-    const stemX = gx + rx * 0.7;
-    const stemTop = gy - 25;
-    let s = '<ellipse cx="' + gx + '" cy="' + gy + '" rx="' + rx + '" ry="' + ry +
-      '" transform="rotate(-22 ' + gx + " " + gy + ')" fill="' + fill + '"></ellipse>' +
-      '<rect x="' + stemX + '" y="' + stemTop + '" width="1.15" height="' + (gy - stemTop) +
-      '" fill="' + fill + '"></rect>';
+    const stemX = gx + G_RX * 0.7;
+    const stemTop = gy - G_STEM_LEN;
+    let s = graceHead(gx, gy, fill) +
+      '<rect x="' + stemX + '" y="' + stemTop + '" width="' + G_STEM_W +
+      '" height="' + (gy - stemTop) + '" fill="' + fill + '"></rect>';
     for (let k = 0; k < 3; k++) {
       const y0 = stemTop + k * 5.1;
-      s += '<path d="M' + (stemX + 1.15) + " " + y0 +
+      s += '<path d="M' + (stemX + G_STEM_W) + " " + y0 +
         " q 5.6 1.5 6.2 6.1 q -2.4 -3.2 -6.2 -3.0 z\" fill=\"" + fill + '"></path>';
+    }
+    return s;
+  }
+
+  // Two or more gracenotes in a row are beamed together with three beams —
+  // written exactly like a run of thirty-second notes.
+  function graceGroupSvg(xRight, graces, fill) {
+    const n = graces.length;
+    if (n === 1) return graceSvg(xRight, NOTES[graces[0]].y, fill);
+    const xs = graces.map((_, i) => xRight - (n - 1 - i) * G_SPACING);
+    const ys = graces.map((g) => NOTES[g].y);
+    const beamTop = Math.min.apply(null, ys) - G_STEM_LEN;
+    const x0 = xs[0] + G_RX * 0.7;
+    const x1 = xs[n - 1] + G_RX * 0.7 + G_STEM_W;
+    let s = "";
+    for (let b = 0; b < 3; b++) {
+      s += '<rect x="' + x0 + '" y="' + (beamTop + b * 4.5) + '" width="' + (x1 - x0) +
+        '" height="2" fill="' + fill + '"></rect>';
+    }
+    for (let i = 0; i < n; i++) {
+      s += graceHead(xs[i], ys[i], fill) +
+        '<rect x="' + (xs[i] + G_RX * 0.7) + '" y="' + beamTop + '" width="' + G_STEM_W +
+        '" height="' + (ys[i] - beamTop) + '" fill="' + fill + '"></rect>';
     }
     return s;
   }
@@ -1147,13 +1207,14 @@
       dom.btnSavedDelete.style.borderColor = deleteArmed ? "#e0bdb7" : "";
     }
 
-    // staff rows — gracenotes sit to the left of their note, so those patterns
-    // get wider spacing and one fewer note a row to stay clear of the clef
+    // staff rows — gracenotes sit to the left of their note, so the more of
+    // them a pattern carries, the more room each note needs
     const isBeatMode = s.timing === "beat";
-    const hasGrace = patternHasGrace();
-    const perRow = hasGrace ? 8 : 9;
-    const gap = 57;
-    const startX = hasGrace ? 80 : 58;
+    const maxG = maxGraceLen();
+    const hasGrace = maxG > 0;
+    const perRow = maxG > 1 ? 5 : maxG === 1 ? 8 : 9;
+    const gap = maxG > 1 ? 82 : 57;
+    const startX = maxG > 1 ? 108 : maxG === 1 ? 80 : 58;
     const staffSig = [
       s.patternId, pseq.join(","), s.pIdx, s.runDone, isBeatMode, s.bpm,
       s.pStates.join(","), s.pCross.join(","), s.pOffset.join(",")
@@ -1186,8 +1247,8 @@
         notesSvg += '<ellipse cx="' + cx + '" cy="' + n.y + '" rx="8.4" ry="5.9" transform="rotate(-22 ' +
           cx + " " + n.y + ')" fill="' + fill + '"></ellipse>';
         notesSvg += '<rect x="' + (cx - 8) + '" y="' + n.y + '" width="1.8" height="42" fill="' + fill + '"></rect>';
-        const gi = graceAt(abs);
-        if (gi >= 0) notesSvg += graceSvg(cx - 24, NOTES[gi].y, fill);
+        const gl = gracesAt(abs);
+        if (gl.length) notesSvg += graceGroupSvg(cx - (gl.length > 1 ? 17 : 24), gl, fill);
         if (s.pCross[abs]) {
           // with a gracenote to the left of the note, the stray marker moves to
           // the right so the two never sit on top of each other
@@ -1203,7 +1264,10 @@
           (st === "done" ? hitFill : st === "dirty" ? "#a85a4e" : isNow ? "#997373" : "#c6b7b0") +
           ';">' + n.name + offLabel + "</div>";
       });
-      rowsHtml += '<div class="staff-row"><svg viewBox="0 0 520 104">' +
+      // beamed groups reach well above the top line, so those rows get extra
+      // headroom rather than running into the row above
+      const vb = maxG > 1 ? "0 -22 520 126" : "0 0 520 104";
+      rowsHtml += '<div class="staff-row"><svg viewBox="' + vb + '">' +
         '<g stroke="#e0d5cf" stroke-width="1.1">' +
         [20, 32, 44, 56, 68].map((y) =>
           '<line x1="10" y1="' + y + '" x2="512" y2="' + y + '"></line>').join("") +
@@ -1241,8 +1305,11 @@
     }
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
     else if (s.timing === "beat" && !s.pPlaying) statusLine = "Press play — one note a beat, and the note has to sound on its beat to count.";
-    else if (hasGrace && graceAt(s.pIdx) >= 0) {
-      const gName = NOTES[graceAt(s.pIdx)].name;
+    else if (hasGrace && (steps()[s.pIdx] || {}).move) {
+      statusLine = "Play the " + steps()[s.pIdx].move + " on " + nowName + ".";
+    }
+    else if (hasGrace && gracesAt(s.pIdx).length === 1) {
+      const gName = NOTES[gracesAt(s.pIdx)[0]].name;
       statusLine = "Play " + nowName + " with " + (/^[AEF]/.test(gName) ? "an " : "a ") +
         gName + " gracenote.";
     }
@@ -1252,8 +1319,12 @@
     // Be straight about what the mic can and cannot judge here.
     dom.patternHint.style.display = hasGrace ? "" : "none";
     if (hasGrace) {
-      dom.patternHint.textContent = "A gracenote is far too short for the mic to time, " +
-        "so only the melody notes are scored — but playing one will not count against you.";
+      dom.patternHint.textContent = maxG > 1
+        ? "The movement is there to read and play — gracenotes are far too short for the mic " +
+          "to time, so only the melody note is scored, and sounding the embellishment will " +
+          "not count against you."
+        : "A gracenote is far too short for the mic to time, so only the melody notes are " +
+          "scored — but playing one will not count against you.";
     }
 
     const isBeat = s.timing === "beat";
