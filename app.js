@@ -98,6 +98,8 @@
   // Beats of metronome before an on-the-beat pattern run starts, so there is
   // time to get the chanter up and the tempo in your head.
   const COUNT_IN_BEATS = 4;
+  // how long a finished run stays on screen before looping round again
+  const LOOP_PAUSE_MS = 2200;
   // Half the 2048-sample analysis window: a note is already part-way through
   // that window by the time the detector can name it, so onsets are back-dated
   // by this much before being timed against the beat.
@@ -278,6 +280,7 @@
   let pTimer = null;
   let swapTimer = null;
   let wrongTimer = null;
+  let runTimer = null;
   let raf = null;
   let stream = null;
   let analyser = null;
@@ -719,6 +722,7 @@
   }
 
   function resetRun() {
+    clearTimeout(runTimer);
     const len = seq().length;
     stableName = null;
     stableCount = 0;
@@ -759,16 +763,6 @@
       stableCount = 0;
       if (i + 1 >= s.length) {
         state.pStates = states;
-        if (state.loop) {
-          // Score the pass, then go straight back to the top on the very next
-          // beat — the count-in belongs to pressing Play, not to every lap.
-          scoreRun(states);
-          resetRun();
-          beatAt = Date.now();
-          pendingEarly = null;
-          tick(true);           // accent the downbeat of the new pass
-          return;
-        }
         finishRun(states);
         return;
       }
@@ -823,6 +817,7 @@
 
   function togglePattern() {
     if (state.pPlaying) {
+      clearTimeout(runTimer);
       stopPatternClock();
       stopDemo();
       state.pPlaying = false;
@@ -878,6 +873,19 @@
     state.pPlaying = false;
     state.pStates = st;
     render();
+
+    clearTimeout(runTimer);
+    // With loop off the finished run stays on screen so the marks can be read.
+    // With it on, hold the marks for a moment and then count in again — the
+    // break is what lets you reset your hands before the next run.
+    if (!state.loop) return;
+    runTimer = setTimeout(() => {
+      if (state.view !== "patterns" || !state.runDone) return;
+      resetRun();
+      state.pPlaying = true;
+      startPatternClock(true);
+      render();
+    }, LOOP_PAUSE_MS);
   }
 
   function patternJudge(name) {
