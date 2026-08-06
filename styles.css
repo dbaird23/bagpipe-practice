@@ -140,6 +140,13 @@ a:hover { color: #2a2120; }
   transition: background 120ms linear, border-color 120ms linear;
 }
 
+.chanter-img {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
 .card-back {
   transform: rotateY(180deg);
   flex-direction: column;

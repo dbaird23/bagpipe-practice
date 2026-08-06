@@ -12,7 +12,9 @@ installable PWA, so it can be added to a phone's home screen and used offline.
 ## What it does
 
 ### Flashcards
-- Random notes from Low G to High A on the staff, click or press Enter to flip
+- Random notes from Low G to High A, click or press Enter to flip
+- Two card faces: **Notation** shows the note on the staff, **Fingering** shows
+  the chanter chart for it. Either way the note name is on the back
 - Metronome-paced auto-advance with adjustable tempo and beats per card
 - Auto-flip reveals the answer on the beat after the note
 - **Listening round** — a scored 20-card game; play each note before its time
@@ -76,7 +78,9 @@ Then open http://localhost:8765.
 | `app.js` | State, metronome, pitch detection, scoring, rendering |
 | `sw.js` | Service worker — offline app shell and font cache |
 | `manifest.webmanifest` | PWA metadata |
+| `fingerings/` | Chanter fingering charts, one per note |
 | `tools/make-icons.py` | Regenerates the icon set (requires Pillow) |
+| `tools/make-fingerings.py` | Trims and flattens the fingering scans |
 
 ## Notes on accuracy
 

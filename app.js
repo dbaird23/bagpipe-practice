@@ -81,6 +81,19 @@
       steps: [plain(NI.B), birl(), plain(NI.B), birl(), plain(NI.C), birl()] }
   );
 
+  // Scanned chanter fingering charts, one per note.
+  const FINGERING_SRC = {
+    "Low G": "fingerings/low-g.png",
+    "Low A": "fingerings/low-a.png",
+    "B": "fingerings/b.png",
+    "C": "fingerings/c.png",
+    "D": "fingerings/d.png",
+    "E": "fingerings/e.png",
+    "F": "fingerings/f.png",
+    "High G": "fingerings/high-g.png",
+    "High A": "fingerings/high-a.png"
+  };
+
   const GAME_LENGTH = 20;
   // Beats of metronome before an on-the-beat pattern run starts, so there is
   // time to get the chanter up and the tempo in your head.
@@ -238,6 +251,7 @@
     calHz: 0,
     checkIdx: 0,
     view: "cards",
+    cardFace: "staff",
     patternId: "scale",
     custom: [],
     pIdx: 0,
@@ -312,6 +326,10 @@
     card: el("card"),
     cardInner: el("cardInner"),
     cardFront: el("cardFront"),
+    staffSvg: el("staffSvg"),
+    chanterImg: el("chanterImg"),
+    tabFaceStaff: el("tabFaceStaff"),
+    tabFaceFinger: el("tabFaceFinger"),
     ledgerLine: el("ledgerLine"),
     noteHead: el("noteHead"),
     noteStem: el("noteStem"),
@@ -1146,6 +1164,9 @@
     return on ? "background: #2a2120; color: #fff;" : "background: none; color: #a99891;";
   }
 
+  // Hold the charts in memory so flipping between cards never shows a blank.
+  Object.keys(FINGERING_SRC).forEach((k) => { new Image().src = FINGERING_SRC[k]; });
+
   const G_RX = 4.4, G_RY = 3.1, G_STEM_W = 1.15;
   const G_SPACING = 10;   // gap between gracenotes inside a beamed group
   const G_STEM_LEN = 25;  // shortest stem, measured from the highest head
@@ -1455,6 +1476,17 @@
 
     if (isPatterns) renderPatterns();
 
+    const fingering = s.cardFace === "fingering";
+    dom.tabFaceStaff.style.cssText = tabStyle(!fingering);
+    dom.tabFaceFinger.style.cssText = tabStyle(fingering);
+    dom.staffSvg.style.display = fingering ? "none" : "";
+    dom.chanterImg.style.display = fingering ? "" : "none";
+    if (fingering) {
+      const src = FINGERING_SRC[note.name];
+      if (src && !dom.chanterImg.src.endsWith(src)) dom.chanterImg.src = src;
+      dom.chanterImg.alt = note.name + " fingering";
+    }
+
     dom.ledgerLine.style.display = note.ledger ? "" : "none";
     dom.noteHead.setAttribute("cy", note.y);
     dom.noteHead.setAttribute("transform", "rotate(-22 118 " + note.y + ")");
@@ -1635,6 +1667,9 @@
   }
 
   // ── wiring ──
+
+  dom.tabFaceStaff.addEventListener("click", () => { state.cardFace = "staff"; state.flipped = false; render(); });
+  dom.tabFaceFinger.addEventListener("click", () => { state.cardFace = "fingering"; state.flipped = false; render(); });
 
   dom.tabCards.addEventListener("click", () => setView("cards"));
   dom.tabPatterns.addEventListener("click", () => setView("patterns"));

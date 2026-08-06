@@ -3,7 +3,7 @@
 //
 // Bump CACHE_VERSION whenever index.html / styles.css / app.js change; the new
 // worker precaches the fresh copies and deletes every older cache on activate.
-const CACHE_VERSION = "v8";
+const CACHE_VERSION = "v9";
 const SHELL_CACHE = "bagpipe-shell-" + CACHE_VERSION;
 const FONT_CACHE = "bagpipe-fonts-" + CACHE_VERSION;
 
@@ -16,7 +16,16 @@ const SHELL = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
-  "./icons/favicon-32.png"
+  "./icons/favicon-32.png",
+  "./fingerings/low-g.png",
+  "./fingerings/low-a.png",
+  "./fingerings/b.png",
+  "./fingerings/c.png",
+  "./fingerings/d.png",
+  "./fingerings/e.png",
+  "./fingerings/f.png",
+  "./fingerings/high-g.png",
+  "./fingerings/high-a.png"
 ];
 
 self.addEventListener("install", (event) => {

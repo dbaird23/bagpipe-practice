@@ -39,7 +39,8 @@
       <div class="card-inner" id="cardInner">
 
         <div class="card-face card-front" id="cardFront">
-          <svg viewBox="0 0 180 104" style="width: 100%; height: auto; overflow: visible;">
+          <img id="chanterImg" class="chanter-img" alt="" style="display: none;">
+          <svg id="staffSvg" viewBox="0 0 180 104" style="width: 100%; height: auto; overflow: visible;">
             <g stroke="#2a2120" stroke-width="1.1">
               <line x1="10" y1="20" x2="170" y2="20"></line>
               <line x1="10" y1="32" x2="170" y2="32"></line>
@@ -63,6 +64,11 @@
     </div>
 
     <div class="controls">
+
+      <div class="tab-group">
+        <button id="tabFaceStaff" class="tab">Notation</button>
+        <button id="tabFaceFinger" class="tab">Fingering</button>
+      </div>
 
       <div class="transport">
         <button id="btnPrev" class="circle-btn" style="width: 44px; height: 44px; font-size: 15px;">&#8592;</button>
