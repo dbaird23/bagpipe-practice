@@ -22,6 +22,11 @@ installable PWA, so it can be added to a phone's home screen and used offline.
 - Full scale, low hand, high hand
 - Every crossing pair (B–C, C–D, D–E, E–F, F–High G) for crossing-noise practice
 - Thirds, scale in fours, wide jumps
+- Single gracenotes — G, D and E — drawn the usual way, as a small note with
+  three flags. Each runs only as high as that gracenote can be played: G up to
+  F, E up to D, D up to C. Gracenotes themselves are too short for the mic to
+  time, so only the melody notes are scored, but sounding one is never counted
+  as a stray note
 - Custom patterns you build by tapping notes, which you can **name and save**;
   saved patterns appear in the picker under "Saved" and persist between visits
 - **Free tempo** — notes fill in as you play them, at your own pace

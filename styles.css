@@ -815,6 +815,14 @@ a:hover { color: #2a2120; }
   text-wrap: pretty;
 }
 
+.pattern-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #a99891;
+  text-wrap: pretty;
+  margin-top: -12px;
+}
+
 .pattern-controls {
   display: flex;
   align-items: center;
