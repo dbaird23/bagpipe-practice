@@ -260,6 +260,8 @@
     pOffset: [],
     timing: "free",
     pPlaying: false,
+    demoing: false,
+    demoIdx: -1,
     countIn: 0,
     loop: true,
     runDone: false,
@@ -309,6 +311,9 @@
   let scored = false;
   let calBuf = [];
   let frame = 0;
+  let demoOsc = null;
+  let demoGain = null;
+  let demoTimers = [];
   let deleteArmed = false;
   let deleteTimer = null;
   let hintTimer = null;
@@ -365,6 +370,7 @@
     patternHint: el("patternHint"),
     btnPatternPlay: el("btnPatternPlay"),
     btnPatternReset: el("btnPatternReset"),
+    btnHear: el("btnHear"),
     btnLoop: el("btnLoop"),
     legend: el("legend"),
     historyPanel: el("historyPanel"),
@@ -452,11 +458,104 @@
     return steps().reduce((m, st) => Math.max(m, st.g ? st.g.length : 0), 0);
   }
 
+  function audio() {
+    ac = ac || new (window.AudioContext || window.webkitAudioContext)();
+    if (ac.state === "suspended") ac.resume();
+    return ac;
+  }
+
+  // Concert pitch of a note, relative to the chanter's calibrated Low A, so
+  // playback is in tune with the instrument in your hands.
+  function noteHz(i) {
+    return state.refA * Math.pow(2, NOTES[i].semis / 12);
+  }
+
+  // Play the selected pattern back. A chanter never stops sounding, so this is
+  // one continuous reed tone whose pitch steps at each note — which is also
+  // exactly how gracenotes work: brief flicks to another pitch and back.
+  function playDemo() {
+    const sq = steps();
+    if (!sq.length) return;
+    stopDemo();
+    stopPatternClock();
+    state.pPlaying = false;
+
+    let ctx;
+    try { ctx = audio(); } catch (err) { return; }
+
+    const beat = 60 / state.bpm;
+    const t0 = ctx.currentTime + 0.12;
+    const total = sq.length * beat;
+
+    const osc = ctx.createOscillator();
+    osc.type = "sawtooth";                 // a double reed is rich in harmonics
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 3400;
+    lp.Q.value = 0.9;
+    const g = ctx.createGain();
+    g.gain.value = 0.0001;
+    osc.connect(lp); lp.connect(g); g.connect(ctx.destination);
+
+    sq.forEach((st, i) => {
+      const startAt = t0 + i * beat;
+      const graces = st.g || [];
+      // gracenotes take their time from the front of the note
+      const gd = Math.min(0.038, beat / (graces.length + 2));
+      let at = startAt;
+      graces.forEach((gi) => {
+        osc.frequency.setValueAtTime(noteHz(gi), at);
+        at += gd;
+      });
+      osc.frequency.setValueAtTime(noteHz(st.n), at);
+    });
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.035);
+    g.gain.setValueAtTime(0.16, t0 + total - 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + total);
+    osc.start(t0);
+    osc.stop(t0 + total + 0.05);
+    demoOsc = osc;
+    demoGain = g;
+
+    // follow along on the staff
+    const lead = (t0 - ctx.currentTime) * 1000;
+    sq.forEach((st, i) => {
+      demoTimers.push(setTimeout(() => { state.demoIdx = i; render(); }, lead + i * beat * 1000));
+    });
+    demoTimers.push(setTimeout(stopDemo, lead + total * 1000 + 120));
+
+    state.demoing = true;
+    state.demoIdx = -1;
+    render();
+  }
+
+  function stopDemo() {
+    demoTimers.forEach(clearTimeout);
+    demoTimers = [];
+    if (demoOsc) {
+      try {
+        const now = ac.currentTime;
+        demoGain.gain.cancelScheduledValues(now);
+        demoGain.gain.setValueAtTime(Math.max(0.0001, demoGain.gain.value), now);
+        demoGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+        demoOsc.stop(now + 0.06);
+      } catch (err) { /* already stopped */ }
+      demoOsc = null;
+      demoGain = null;
+    }
+    if (state.demoing || state.demoIdx >= 0) {
+      state.demoing = false;
+      state.demoIdx = -1;
+      render();
+    }
+  }
+
   function tick(accent) {
     if (!state.sound) return;
     try {
-      ac = ac || new (window.AudioContext || window.webkitAudioContext)();
-      if (ac.state === "suspended") ac.resume();
+      ac = audio();
       const t = ac.currentTime;
       const o = ac.createOscillator();
       const g = ac.createGain();
@@ -472,6 +571,7 @@
   // ── views ──
 
   function setView(view) {
+    stopDemo();
     stopClock();
     stopPatternClock();
     state.view = view;
@@ -484,6 +584,7 @@
   }
 
   function pickPattern(id) {
+    stopDemo();
     stopPatternClock();
     state.patternId = id;
     state.pPlaying = false;
@@ -667,6 +768,7 @@
     if (state.pPlaying) {
       clearTimeout(runTimer);
       stopPatternClock();
+      stopDemo();
       state.pPlaying = false;
       render();
     } else {
@@ -735,6 +837,8 @@
 
   function patternJudge(name) {
     const s = state;
+    // the mic would otherwise hear the app's own playback and score it
+    if (s.demoing) return;
     if (s.dialogStep || s.view !== "patterns" || s.runDone) return;
     if (s.timing === "beat" && !s.pPlaying) return;
     if (s.countIn > 0) return; // anything played during the count-in is ignored
@@ -1306,7 +1410,7 @@
       s.patternId,
       // notes and their gracenotes, so edits in the builder redraw
       steps().map((st) => st.n + ":" + st.g.join("-")).join(","),
-      s.pIdx, s.runDone, isBeatMode, s.bpm,
+      s.pIdx, s.runDone, isBeatMode, s.bpm, s.demoing, s.demoIdx,
       s.pStates.join(","), s.pCross.join(","), s.pOffset.join(",")
     ].join("|");
     const buildRows = () => {
@@ -1319,7 +1423,7 @@
         const n = NOTES[ni];
         const abs = r + k;
         const st = s.pStates[abs] || "pending";
-        const isNow = abs === s.pIdx && !s.runDone;
+        const isNow = s.demoing ? abs === s.demoIdx : (abs === s.pIdx && !s.runDone);
         const cx = startX + k * gap;
         // on the beat, a hit note is coloured by its timing
         const off = isBeatMode ? s.pOffset[abs] : null;
@@ -1372,6 +1476,7 @@
     const nowName = pseq.length && !s.runDone ? (NOTES[pseq[s.pIdx]] || NOTES[0]).name : "";
     let statusLine;
     if (!pseq.length) statusLine = "Tap notes above to build a pattern.";
+    else if (s.demoing) statusLine = "Playing it back at " + s.bpm + " bpm, tuned to your Low A.";
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
     else if (!s.listening) statusLine = "Turn the mic on and the notes will fill in as you play them.";
     else if (s.runDone) {
@@ -1448,6 +1553,13 @@
           (h.beat ? "#6f605a" : "#c2b4ad") + ';">' + onBeat + "</div>" +
         "</div>";
     }).join(""));
+
+    dom.btnHear.textContent = s.demoing ? "Stop" : "Hear it";
+    dom.btnHear.disabled = !pseq.length;
+    dom.btnHear.style.cssText = roundBtn + (s.demoing
+      ? "#997373; background: #997373; color: #fff;"
+      : "#dccfc8; background: #ffffff; color: #2a2120;") +
+      (pseq.length ? "" : " opacity: 0.45; cursor: default;");
 
     dom.btnLoop.textContent = s.loop ? "Loop on" : "Loop off";
     dom.btnLoop.style.cssText = roundBtn + (s.loop
@@ -1727,6 +1839,7 @@
   dom.btnSavedDelete.addEventListener("click", deleteSaved);
   dom.btnPatternPlay.addEventListener("click", togglePattern);
   dom.btnPatternReset.addEventListener("click", () => { stopPatternClock(); state.pPlaying = false; resetRun(); });
+  dom.btnHear.addEventListener("click", () => (state.demoing ? stopDemo() : playDemo()));
   dom.btnLoop.addEventListener("click", () => { state.loop = !state.loop; render(); });
   dom.btnClearHistory.addEventListener("click", () => { state.history = []; saveHistory(); render(); });
   dom.tabFree.addEventListener("click", () => { stopPatternClock(); state.timing = "free"; state.pPlaying = false; resetRun(); });
