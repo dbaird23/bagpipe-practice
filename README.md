@@ -30,8 +30,10 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   written as a run of thirty-second notes
 - Gracenotes are too short for the mic to time, so only the melody notes are
   scored — but sounding an embellishment is never counted as a stray note
-- Custom patterns you build by tapping notes, which you can **name and save**;
-  saved patterns appear in the picker under "Saved" and persist between visits
+- Custom patterns you build by tapping notes, with gracenotes of your own on any
+  note — one gets three flags, two or more are beamed together automatically.
+  Name one to **save** it; saved patterns appear in the picker under "Saved" and
+  persist between visits
 - **Free tempo** — notes fill in as you play them, at your own pace
 - **On the beat** — a metronome drill with a 4-beat count-in, where each note
   must sound on its own beat. Notes are marked green (on the beat), blue (early)

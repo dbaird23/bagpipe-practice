@@ -113,15 +113,32 @@
     try { localStorage.setItem(REF_KEY, String(state.refA)); } catch (err) { /* storage unavailable */ }
   }
 
+  const validNote = (n) => Number.isInteger(n) && n >= 0 && n < NOTES.length;
+
+  // Steps are stored as {n, g}. Patterns saved before gracenotes existed are
+  // plain note numbers, so those are accepted and lifted into the new shape.
+  function normSteps(arr) {
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    arr.forEach((e) => {
+      if (validNote(e)) { out.push({ n: e, g: [] }); return; }
+      if (!e || !validNote(e.n)) return;
+      const g = Array.isArray(e.g) ? e.g.filter(validNote) : [];
+      out.push({ n: e.n, g: g });
+    });
+    return out;
+  }
+
+  const cloneSteps = (arr) => arr.map((st) => ({ n: st.n, g: st.g.slice() }));
+
   function loadSaved() {
     try {
       const arr = JSON.parse(localStorage.getItem(SAVED_KEY) || "[]");
       if (!Array.isArray(arr)) return [];
       // keep only well-formed entries — a corrupt store shouldn't break the app
-      return arr.filter((s) =>
-        s && typeof s.id === "string" && typeof s.name === "string" &&
-        Array.isArray(s.seq) && s.seq.every((n) => Number.isInteger(n) && n >= 0 && n < NOTES.length)
-      );
+      return arr
+        .filter((s) => s && typeof s.id === "string" && typeof s.name === "string" && Array.isArray(s.seq))
+        .map((s) => ({ id: s.id, name: s.name, seq: normSteps(s.seq) }));
     } catch (err) { return []; }
   }
 
@@ -308,6 +325,8 @@
     streakVal: el("streakVal"),
     customBuilder: el("customBuilder"),
     customNotes: el("customNotes"),
+    customGraces: el("customGraces"),
+    graceBuildHint: el("graceBuildHint"),
     btnCustomUndo: el("btnCustomUndo"),
     btnCustomClear: el("btnCustomClear"),
     customName: el("customName"),
@@ -388,9 +407,9 @@
   // gracenotes that lead into it (empty for a plain note).
   function steps() {
     const s = currentSaved();
-    if (s) return s.seq.map(plain);
+    if (s) return s.seq;
     const p = currentPattern();
-    if (p.id === "custom") return state.custom.map(plain);
+    if (p.id === "custom") return state.custom;
     if (p.steps) return p.steps;
     const notes = seqOf(p.seq);
     if (!p.grace) return notes.map(plain);
@@ -458,13 +477,13 @@
     const existing = state.saved.find((s) => s.name.toLowerCase() === name.toLowerCase());
     let id;
     if (existing) {
-      existing.seq = state.custom.slice();
+      existing.seq = cloneSteps(state.custom);
       existing.name = name;
       id = existing.id;
       saveHint = "Updated";
     } else {
       id = newId();
-      state.saved = [{ id: id, name: name, seq: state.custom.slice() }].concat(state.saved);
+      state.saved = [{ id: id, name: name, seq: cloneSteps(state.custom) }].concat(state.saved);
       saveHint = "Saved";
     }
     saveSaved();
@@ -479,9 +498,35 @@
   function editSaved() {
     const s = currentSaved();
     if (!s) return;
-    state.custom = s.seq.slice();
+    state.custom = cloneSteps(s.seq);
     dom.customName.value = s.name;
     pickPattern("custom");
+  }
+
+  function addCustomNote(i) {
+    state.custom = state.custom.concat([{ n: i, g: [] }]);
+    resetRun();
+  }
+
+  // Gracenotes attach to the note most recently placed, which is how they read
+  // on the staff: they lead into it.
+  function addCustomGrace(i) {
+    if (!state.custom.length) return;
+    const out = cloneSteps(state.custom);
+    out[out.length - 1].g.push(i);
+    state.custom = out;
+    resetRun();
+  }
+
+  // Undo reverses the last tap, whether that was a gracenote or a note.
+  function undoCustom() {
+    if (!state.custom.length) return;
+    const out = cloneSteps(state.custom);
+    const last = out[out.length - 1];
+    if (last.g.length) last.g.pop();
+    else out.pop();
+    state.custom = out;
+    resetRun();
   }
 
   function deleteSaved() {
@@ -1178,7 +1223,8 @@
 
     dom.patternName.textContent = pat.name;
     dom.patternMeta.textContent = pseq.length
-      ? pseq.length + " notes · " + (s.timing === "beat" ? s.bpm + " bpm" : "free tempo")
+      ? pseq.length + (pseq.length === 1 ? " note · " : " notes · ") +
+        (s.timing === "beat" ? s.bpm + " bpm" : "free tempo")
       : "empty";
     dom.streakVal.textContent = s.streak;
     dom.streakVal.style.color = s.streak ? "#7d9163" : "#cabbb4";
@@ -1187,6 +1233,21 @@
     setHtml(dom.customNotes, "customNotes", "built", () => NOTES.map((n, i) =>
       '<button class="custom-note-btn" data-add="' + i + '">' + n.name + "</button>"
     ).join(""));
+    setHtml(dom.customGraces, "customGraces", "built", () => NOTES.map((n, i) =>
+      '<button class="custom-note-btn" data-grace="' + i + '">' + n.name + "</button>"
+    ).join(""));
+
+    if (pat.id === "custom") {
+      const lastStep = state.custom[state.custom.length - 1];
+      dom.customGraces.querySelectorAll("[data-grace]").forEach((b) => { b.disabled = !lastStep; });
+      dom.graceBuildHint.textContent = !lastStep
+        ? "Add a note first — gracenotes attach to the note before them."
+        : lastStep.g.length
+          ? "On " + NOTES[lastStep.n].name + ": " + lastStep.g.map((g) => NOTES[g].name).join(", ") +
+            (lastStep.g.length > 1 ? " — beamed together." : ".")
+          : "Adds to the last note (" + NOTES[lastStep.n].name +
+            "). Two or more beam together automatically.";
+    }
 
     if (pat.id === "custom") {
       const named = dom.customName.value.trim().length > 0;
@@ -1216,7 +1277,10 @@
     const gap = maxG > 1 ? 82 : 57;
     const startX = maxG > 1 ? 108 : maxG === 1 ? 80 : 58;
     const staffSig = [
-      s.patternId, pseq.join(","), s.pIdx, s.runDone, isBeatMode, s.bpm,
+      s.patternId,
+      // notes and their gracenotes, so edits in the builder redraw
+      steps().map((st) => st.n + ":" + st.g.join("-")).join(","),
+      s.pIdx, s.runDone, isBeatMode, s.bpm,
       s.pStates.join(","), s.pCross.join(","), s.pOffset.join(",")
     ].join("|");
     const buildRows = () => {
@@ -1608,9 +1672,13 @@
   });
   dom.customNotes.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-add]");
-    if (btn) { state.custom = state.custom.concat([Number(btn.dataset.add)]); resetRun(); }
+    if (btn) addCustomNote(Number(btn.dataset.add));
   });
-  dom.btnCustomUndo.addEventListener("click", () => { state.custom = state.custom.slice(0, -1); resetRun(); });
+  dom.customGraces.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-grace]");
+    if (btn && !btn.disabled) addCustomGrace(Number(btn.dataset.grace));
+  });
+  dom.btnCustomUndo.addEventListener("click", undoCustom);
   dom.btnCustomClear.addEventListener("click", () => { state.custom = []; resetRun(); });
   dom.customName.addEventListener("input", render);
   dom.customName.addEventListener("keydown", (e) => { if (e.key === "Enter") saveCustom(); });
