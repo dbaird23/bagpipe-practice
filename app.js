@@ -593,6 +593,12 @@
     }
   }
 
+  // The click has to be heard over a chanter, which is not a quiet instrument.
+  // A triangle carries far more harmonic content than a sine at the same peak,
+  // so it cuts through rather than sitting under the reed.
+  const CLICK_PEAK = 0.78;
+  const CLICK_PEAK_OFFBEAT = 0.52;
+
   function tick(accent) {
     if (!state.sound) return;
     try {
@@ -600,12 +606,13 @@
       const t = ac.currentTime;
       const o = ac.createOscillator();
       const g = ac.createGain();
+      o.type = "triangle";
       o.frequency.value = accent ? 1320 : 880;
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(accent ? 0.22 : 0.12, t + 0.004);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+      g.gain.exponentialRampToValueAtTime(accent ? CLICK_PEAK : CLICK_PEAK_OFFBEAT, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
       o.connect(g); g.connect(ac.destination);
-      o.start(t); o.stop(t + 0.09);
+      o.start(t); o.stop(t + 0.11);
     } catch (err) { /* audio unavailable */ }
   }
 
