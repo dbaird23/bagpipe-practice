@@ -50,6 +50,10 @@
   // Steps follow the Piper's Dojo embellishment guide.
   const NI = { LG: 0, LA: 1, B: 2, C: 3, D: 4, E: 5, F: 6, HG: 7, HA: 8 };
 
+  // Low A and B are effectively never played as gracenotes, so the builder
+  // leaves them out. Patterns that already contain them still render and play.
+  const GRACE_CHOICES = NOTES.map((n, i) => i).filter((i) => i !== NI.LA && i !== NI.B);
+
   const plain = (x) => ({ n: x, g: [] });
   // High G gracenote to X, then D gracenote on X — or the next note up once X
   // has reached D, since the second gracenote must sit above the note.
@@ -1233,8 +1237,8 @@
     setHtml(dom.customNotes, "customNotes", "built", () => NOTES.map((n, i) =>
       '<button class="custom-note-btn" data-add="' + i + '">' + n.name + "</button>"
     ).join(""));
-    setHtml(dom.customGraces, "customGraces", "built", () => NOTES.map((n, i) =>
-      '<button class="custom-note-btn" data-grace="' + i + '">' + n.name + "</button>"
+    setHtml(dom.customGraces, "customGraces", "built", () => GRACE_CHOICES.map((i) =>
+      '<button class="custom-note-btn" data-grace="' + i + '">' + NOTES[i].name + "</button>"
     ).join(""));
 
     if (pat.id === "custom") {
