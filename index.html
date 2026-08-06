@@ -35,6 +35,9 @@
   <!-- ─────────────────────────── Flashcards view ─────────────────────────── -->
   <div class="view" id="cardsView">
 
+    <div class="card-row">
+    <button id="btnPrev" class="circle-btn nav-arrow" aria-label="Previous note">&#8592;</button>
+
     <div class="card" id="card">
       <div class="card-inner" id="cardInner">
 
@@ -63,6 +66,9 @@
       </div>
     </div>
 
+    <button id="btnNext" class="circle-btn nav-arrow" aria-label="Next note">&#8594;</button>
+    </div>
+
     <div class="controls">
 
       <div class="tab-group">
@@ -71,9 +77,7 @@
       </div>
 
       <div class="transport">
-        <button id="btnPrev" class="circle-btn" style="width: 44px; height: 44px; font-size: 15px;">&#8592;</button>
         <button id="btnPlay" class="pill-btn">Play</button>
-        <button id="btnNext" class="circle-btn" style="width: 44px; height: 44px; font-size: 15px;">&#8594;</button>
         <button id="btnGame" class="pill-btn">Listening round</button>
       </div>
 
@@ -125,7 +129,10 @@
         </div>
       </div>
 
-      <div class="footnote">Click the card to flip &middot; &#8594; next &middot; &#8592; back &middot; space plays</div>
+      <div class="footnote">
+        <span class="only-wide">Click the card to flip &middot; &#8594; next &middot; &#8592; back &middot; space plays</span>
+        <span class="only-narrow">Tap the card to flip &middot; swipe left or right to change card</span>
+      </div>
 
     </div>
 

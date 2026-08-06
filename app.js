@@ -310,6 +310,10 @@
   let scored = false;
   let calBuf = [];
   let frame = 0;
+  const SWIPE_MIN = 45;   // px of sideways travel before it counts as a swipe
+  let touchX = 0;
+  let touchY = 0;
+  let swipedAt = 0;   // when the last swipe finished
   let demoOsc = null;
   let demoGain = null;
   let demoTimers = [];
@@ -1809,7 +1813,33 @@
   dom.tabCards.addEventListener("click", () => setView("cards"));
   dom.tabPatterns.addEventListener("click", () => setView("patterns"));
 
-  dom.card.addEventListener("click", () => { if (state.mode === "practice" && !state.dialogStep) flip(); });
+  const cardNavOk = () => state.mode === "practice" && !state.dialogStep;
+
+  dom.card.addEventListener("click", () => {
+    // A swipe may be followed by a synthesized click; swallow that one so the
+    // card doesn't also flip. Time-bounded rather than a flag, because a swipe
+    // often produces no click at all and a stale flag would eat the next tap.
+    if (Date.now() - swipedAt < 400) return;
+    if (cardNavOk()) flip();
+  });
+
+  // Swipe left or right to change card, the way you'd expect on a phone.
+  dom.card.addEventListener("touchstart", (e) => {
+    const t = e.changedTouches[0];
+    touchX = t.clientX;
+    touchY = t.clientY;
+  }, { passive: true });
+
+  dom.card.addEventListener("touchend", (e) => {
+    if (!cardNavOk()) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchX;
+    const dy = t.clientY - touchY;
+    // must be clearly sideways, so scrolling the page still works
+    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    swipedAt = Date.now();
+    if (dx < 0) advance(); else back();
+  }, { passive: true });
   dom.btnPrev.addEventListener("click", back);
   dom.btnNext.addEventListener("click", advance);
   dom.btnPlay.addEventListener("click", toggle);

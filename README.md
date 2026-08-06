@@ -12,7 +12,8 @@ installable PWA, so it can be added to a phone's home screen and used offline.
 ## What it does
 
 ### Flashcards
-- Random notes from Low G to High A, click or press Enter to flip
+- Random notes from Low G to High A, click or press Enter to flip. Arrows either
+  side of the card step through the deck; on a phone they give way to swiping
 - Two card faces: **Notation** shows the note on the staff, **Fingering** shows
   the chanter chart for it. Either way the note name is on the back
 - Metronome-paced auto-advance with adjustable tempo and beats per card

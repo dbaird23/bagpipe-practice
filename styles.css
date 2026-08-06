@@ -99,6 +99,19 @@ a:hover { color: #2a2120; }
   font-variant-numeric: lining-nums tabular-nums;
 }
 
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+
+.nav-arrow {
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  flex: none;
+}
+
 .card {
   width: 380px;
   height: 532px;
@@ -106,6 +119,8 @@ a:hover { color: #2a2120; }
   cursor: pointer;
   user-select: none;
   flex: none;
+  /* let the page scroll vertically, but keep horizontal drags for swiping */
+  touch-action: pan-y;
 }
 
 .card-inner {
@@ -368,6 +383,9 @@ a:hover { color: #2a2120; }
   letter-spacing: 0.06em;
   color: #a99891;
 }
+
+.only-narrow { display: none; }
+.only-wide { display: inline; }
 
 .overlay {
   position: fixed;
@@ -950,6 +968,14 @@ a:hover { color: #2a2120; }
     height: min(448px, 120vw);
   }
 
+  .card-row { gap: 12px; }
+
+  .nav-arrow {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+  }
+
   .note-name { font-size: 64px; }
 
   .bar,
@@ -981,4 +1007,11 @@ a:hover { color: #2a2120; }
   .history-onbeat { width: auto; text-align: left; }
 
   .footnote { text-align: center; }
+}
+
+/* On a phone the card takes the full width and swiping replaces the arrows. */
+@media (max-width: 600px) {
+  .nav-arrow { display: none; }
+  .only-narrow { display: inline; }
+  .only-wide { display: none; }
 }
