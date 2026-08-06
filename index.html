@@ -187,15 +187,11 @@
     </div>
 
     <div class="pattern-controls">
-      <button id="btnPatternPlay" class="pill-btn" style="display: none;">Play</button>
+      <button id="btnPatternPlay" class="pill-btn">Play</button>
       <button id="btnHear" class="pill-btn">Hear it</button>
       <button id="btnPatternReset" class="ghost-btn" style="height: 44px; padding: 0 20px;">Restart</button>
       <button id="btnLoop" class="pill-btn">Loop on</button>
-      <div class="tab-group">
-        <button id="tabFree" class="tab">Free tempo</button>
-        <button id="tabBeat" class="tab">On the beat</button>
-      </div>
-      <div class="bar tempo-bar" id="patternTempo" style="display: none; padding: 10px 18px; gap: 10px;">
+      <div class="bar tempo-bar" id="patternTempo" style="padding: 10px 18px; gap: 10px;">
         <div class="bar-label">Tempo</div>
         <button class="circle-btn js-bpm-down" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">&minus;</button>
         <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" style="width: 110px; accent-color: #997373;">

@@ -258,7 +258,6 @@
     pStates: [],
     pCross: [],
     pOffset: [],
-    timing: "free",
     pPlaying: false,
     demoing: false,
     demoIdx: -1,
@@ -382,8 +381,6 @@
     historyPanel: el("historyPanel"),
     historyRows: el("historyRows"),
     btnClearHistory: el("btnClearHistory"),
-    tabFree: el("tabFree"),
-    tabBeat: el("tabBeat"),
     patternTempo: el("patternTempo"),
     resultOverlay: el("resultOverlay"),
     resultTempo: el("resultTempo"),
@@ -815,26 +812,23 @@
     } else {
       state.pPlaying = true;
       resetRun();
-      if (state.timing === "beat") startPatternClock(true);
+      startPatternClock(true);
     }
   }
 
   function finishRun(states) {
     const st = states || state.pStates;
-    const wasBeat = state.timing === "beat";
     const allHit = st.length > 0 && st.every((x) => x === "done");
     let early = 0, late = 0, on = 0;
-    if (wasBeat) {
-      state.pOffset.forEach((o, i) => {
-        if (o === null || st[i] === "missed") return;
-        const t = timingOf(o);
-        if (t === "early") early++;
-        else if (t === "late") late++;
-        else on++;
-      });
-    }
-    // on the beat, a clean run also has to be in time
-    const clean = allHit && (!wasBeat || (early === 0 && late === 0));
+    state.pOffset.forEach((o, i) => {
+      if (o === null || st[i] === "missed") return;
+      const t = timingOf(o);
+      if (t === "early") early++;
+      else if (t === "late") late++;
+      else on++;
+    });
+    // a clean run also has to be in time
+    const clean = allHit && early === 0 && late === 0;
     stopPatternClock();
     state.runDone = true;
     state.pPlaying = false;
@@ -842,7 +836,7 @@
     state.streak = clean ? state.streak + 1 : 0;
     state.lastRun = {
       clean,
-      beat: wasBeat,
+      beat: true,   // kept so older free-tempo history still reads correctly
       on, early, late,
       strays: state.pCross.filter(Boolean).length,
       missed: st.filter((x) => x === "missed").length
@@ -852,7 +846,7 @@
     state.history = [{
       pattern: currentPattern().name,
       bpm: state.bpm,
-      beat: wasBeat,
+      beat: true,
       total: st.length,
       correct: st.length - missed,
       on: on,
@@ -868,10 +862,8 @@
     runTimer = setTimeout(() => {
       if (state.view !== "patterns" || !state.runDone) return;
       resetRun();
-      if (state.timing === "beat") {
-        state.pPlaying = true;
-        startPatternClock(true);
-      }
+      state.pPlaying = true;
+      startPatternClock(true);
       render();
     }, 2200);
   }
@@ -881,7 +873,7 @@
     // the mic would otherwise hear the app's own playback and score it
     if (s.demoing) return;
     if (s.dialogStep || s.view !== "patterns" || s.runDone) return;
-    if (s.timing === "beat" && !s.pPlaying) return;
+    if (!s.pPlaying) return;
     if (s.countIn > 0) return; // anything played during the count-in is ignored
     const sq = seq();
     if (!sq.length) return;
@@ -892,22 +884,13 @@
     if (name === target) {
       const states = s.pStates.slice();
       states[i] = s.pCross[i] ? "dirty" : "done";
-      if (s.timing === "beat") {
-        // keep the first hit's timing — a sustained note shouldn't re-score
-        if (s.pOffset[i] === null && beatAt) {
-          const offsets = s.pOffset.slice();
-          offsets[i] = stableSince - beatAt;
-          s.pOffset = offsets;
-        }
-        s.pStates = states;
-        render();
-        return;
+      // keep the first hit's timing — a sustained note shouldn't re-score
+      if (s.pOffset[i] === null && beatAt) {
+        const offsets = s.pOffset.slice();
+        offsets[i] = stableSince - beatAt;
+        s.pOffset = offsets;
       }
-      stableName = null;
-      stableCount = 0;
-      if (i + 1 >= sq.length) { s.pStates = states; finishRun(states); return; }
       s.pStates = states;
-      s.pIdx = i + 1;
       render();
       return;
     }
@@ -919,7 +902,7 @@
 
     // the next note, sounded just before its beat, is an early attack rather
     // than a stray — hold it and score it when that beat arrives
-    if (s.timing === "beat" && beatAt && i + 1 < sq.length &&
+    if (beatAt && i + 1 < sq.length &&
         name === NOTES[sq[i + 1]].name) {
       // anything in the back half of this beat is the next note arriving early
       // rather than a stray; how early it was decides on/early below
@@ -1292,7 +1275,7 @@
     if (state.playing) startClock();
     // Rebuilding the clock mid-run keeps the run going; if the tempo changed
     // during a count-in, count in again at the new tempo.
-    if (state.pPlaying && state.timing === "beat") startPatternClock(state.countIn > 0);
+    if (state.pPlaying) startPatternClock(state.countIn > 0);
     // Playback runs at a fixed beat, so a tempo change restarts it. Debounced
     // so dragging the slider doesn't stutter.
     if (state.demoing) {
@@ -1401,7 +1384,7 @@
     dom.patternName.textContent = pat.name;
     dom.patternMeta.textContent = pseq.length
       ? pseq.length + (pseq.length === 1 ? " note · " : " notes · ") +
-        (s.timing === "beat" ? s.bpm + " bpm" : "free tempo")
+        s.bpm + " bpm"
       : "empty";
     dom.streakVal.textContent = s.streak;
     dom.streakVal.style.color = s.streak ? "#7d9163" : "#cabbb4";
@@ -1447,7 +1430,6 @@
 
     // staff rows — gracenotes sit to the left of their note, so the more of
     // them a pattern carries, the more room each note needs
-    const isBeatMode = s.timing === "beat";
     const maxG = maxGraceLen();
     const hasGrace = maxG > 0;
     const perRow = maxG > 1 ? 5 : maxG === 1 ? 8 : 9;
@@ -1457,7 +1439,7 @@
       s.patternId,
       // notes and their gracenotes, so edits in the builder redraw
       steps().map((st) => st.n + ":" + st.g.join("-")).join(","),
-      s.pIdx, s.runDone, isBeatMode, s.bpm, s.demoing, s.demoIdx,
+      s.pIdx, s.runDone, s.bpm, s.demoing, s.demoIdx,
       s.pStates.join(","), s.pCross.join(","), s.pOffset.join(",")
     ].join("|");
     const buildRows = () => {
@@ -1473,7 +1455,7 @@
         const isNow = s.demoing ? abs === s.demoIdx : (abs === s.pIdx && !s.runDone);
         const cx = startX + k * gap;
         // on the beat, a hit note is coloured by its timing
-        const off = isBeatMode ? s.pOffset[abs] : null;
+        const off = s.pOffset[abs];
         const timing = (st === "done" || st === "dirty") && off !== null ? timingOf(off) : null;
         const hitFill = timing === "early" ? "#6f8fa8"
           : timing === "late" ? "#c08a3e" : "#7d9163";
@@ -1548,7 +1530,7 @@
       }
     }
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
-    else if (s.timing === "beat" && !s.pPlaying) statusLine = "Press play — one note a beat, and the note has to sound on its beat to count.";
+    else if (!s.pPlaying) statusLine = "Press play — one note a beat, and the note has to sound on its beat to count.";
     else if (hasGrace && (steps()[s.pIdx] || {}).move) {
       statusLine = "Play the " + steps()[s.pIdx].move + " on " + nowName + ".";
     }
@@ -1571,21 +1553,13 @@
           "scored — but playing one will not count against you.";
     }
 
-    const isBeat = s.timing === "beat";
-    dom.btnPatternPlay.style.display = isBeat ? "" : "none";
-    dom.patternTempo.style.display = isBeat ? "flex" : "none";
     dom.btnPatternPlay.textContent = s.pPlaying ? "Stop" : "Play";
-    dom.btnPatternPlay.style.cssText = "display: " + (isBeat ? "block" : "none") + "; " + roundBtn +
+    dom.btnPatternPlay.style.cssText = roundBtn +
       (s.pPlaying ? "#997373; background: #997373; color: #fff;" : "#2a2120; background: #2a2120; color: #fff;");
-    dom.tabFree.style.cssText = isBeat ? "background: none; color: #a99891;" : "background: #f0e7e2; color: #2a2120;";
-    dom.tabBeat.style.cssText = isBeat ? "background: #f0e7e2; color: #2a2120;" : "background: none; color: #a99891;";
 
-    const legend = isBeat
-      ? [["#7d9163", "On the beat"], ["#6f8fa8", "Early"], ["#c08a3e", "Late"],
-         ["#a85a4e", "Stray note on the way in"], ["#ded2cc", "Missed the beat"]]
-      : [["#7d9163", "Clean"], ["#a85a4e", "Stray note on the way in"],
-         ["#ded2cc", "Missed the beat"]];
-    setHtml(dom.legend, "legend", String(isBeat), () => legend.map(([c, label]) =>
+    const legend = [["#7d9163", "On the beat"], ["#6f8fa8", "Early"], ["#c08a3e", "Late"],
+      ["#a85a4e", "Stray note on the way in"], ["#ded2cc", "Missed the beat"]];
+    setHtml(dom.legend, "legend", "built", () => legend.map(([c, label]) =>
       '<div class="legend-item"><div class="legend-dot" style="background: ' + c + ';"></div>' +
       label + "</div>").join(""));
 
@@ -1896,8 +1870,6 @@
     render();
   });
   dom.btnClearHistory.addEventListener("click", () => { state.history = []; saveHistory(); render(); });
-  dom.tabFree.addEventListener("click", () => { stopPatternClock(); state.timing = "free"; state.pPlaying = false; resetRun(); });
-  dom.tabBeat.addEventListener("click", () => { stopPatternClock(); state.timing = "beat"; state.pPlaying = false; resetRun(); });
 
   dom.btnExitGame.addEventListener("click", exitGame);
   dom.btnPlayAgain.addEventListener("click", startGame);

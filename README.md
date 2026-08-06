@@ -36,10 +36,9 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   note — one gets three flags, two or more are beamed together automatically.
   Name one to **save** it; saved patterns appear in the picker under "Saved" and
   persist between visits
-- **Free tempo** — notes fill in as you play them, at your own pace
-- **On the beat** — a metronome drill with a 4-beat count-in, where each note
-  must sound on its own beat. Notes are marked green (on the beat), blue (early)
-  or amber (late), with the offset in milliseconds
+- Every run is a metronome drill with a 4-beat count-in, where each note must
+  sound on its own beat. Notes are marked green (on the beat), blue (early) or
+  amber (late), with the offset in milliseconds
 - A red dot marks a stray note sounded on the way into a note
 - **Hear it** plays the pattern back so you know what you are aiming for —
   gracenotes and all — as one continuous reed tone pitched to your own Low A.
