@@ -48,6 +48,39 @@ installable PWA, so it can be added to a phone's home screen and used offline.
 - Clean-run streak, optional looping, and a persisted log of recent runs showing
   notes correct and notes on beat
 
+### Metronome
+- A beat ring with a sweeping hand, one pip per beat, and the tempo in the
+  middle. Start it with the button or the space bar
+- Tune-type presets — plain click, marches in 2/4, 3/4, 4/4, 6/8 and 9/8,
+  strathspey, reel, jig, hornpipe and slow airs. Each one sets the time
+  signature, subdivision, pointing and accents together, and carries three
+  tempos: **Slow**, **Working** and **Target**. Change a setting afterwards and
+  the chip says it has been edited rather than going on claiming to be a march
+- The tempo always says which note value it counts, and reads out the bars a
+  minute beside it. Piping sources disagree about tempo numbers mostly because
+  they count different units: a reel is in cut time at half notes, so a reel at
+  86 covers 43 bars a minute while a strathspey at 116 covers 29
+- Tap tempo, count-in, click on or off, and volume
+- Advanced settings, folded away and remembered: time signature, subdivision,
+  a per-beat accent editor, pointing, beat stretch, gap trainer, tempo ramp,
+  drone, click sound, screen flash and haptics
+- **Pointing** is how unevenly a pair of notes is played. The middle of the
+  slider is round — both notes the same length — and 75 is the written dot of a
+  2/4 march. Below the middle it flips into the short-then-long Scots snap a
+  strathspey turns on. The range narrows as the subdivision gets denser, because
+  at six to the beat an extreme setting puts two clicks close enough together to
+  read as one
+- **Silent bars** plays a few bars, then goes quiet for a few while the count
+  carries on underneath, so you find out whether your tempo held
+- **Tempo ramp** raises the tempo a step at a time and stops at a ceiling
+- The **drone** is pitched from the same Low A the microphone is calibrated to.
+  The bass drone is too low for a phone speaker; use headphones to hear it
+- Timing runs on the audio clock, so it holds while the tab is in the
+  background, and the screen is kept awake where the browser allows it
+
+There is no piobaireachd setting. The ground of a piobaireachd is not played in
+strict time, and a click would teach the wrong thing.
+
 ### Microphone
 A three-step setup checks the input level, calibrates the reference pitch, and
 walks the scale to confirm everything registers.
@@ -77,9 +110,10 @@ Then open http://localhost:8765.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Markup for both views and the dialogs |
+| `index.html` | Markup for all three views and the dialogs |
 | `styles.css` | All styling, including the narrow-screen layout |
-| `app.js` | State, metronome, pitch detection, scoring, rendering |
+| `metronome.js` | The metronome's clock, click and drone — no DOM |
+| `app.js` | State, drill timing, pitch detection, scoring, rendering |
 | `sw.js` | Service worker — offline app shell and font cache |
 | `manifest.webmanifest` | PWA metadata |
 | `fingerings/` | Chanter fingering charts, one per note |
@@ -98,5 +132,5 @@ timing rig.
 ## Deploying
 
 The `main` branch is published with GitHub Pages from the repository root.
-After changing `index.html`, `styles.css` or `app.js`, bump `CACHE_VERSION` in
+After changing `index.html`, `styles.css`, `app.js` or `metronome.js`, bump `CACHE_VERSION` in
 [`sw.js`](sw.js) so installed copies pick up the new files.

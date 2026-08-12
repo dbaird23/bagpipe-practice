@@ -26,9 +26,10 @@
       <div class="title" id="heading">Bagpipe note drill</div>
       <div class="counter" id="counter">1 / 9</div>
     </div>
-    <div class="tab-group">
+    <div class="tab-group main-tabs">
       <button id="tabCards" class="tab">Flashcards</button>
       <button id="tabPatterns" class="tab">Scales &amp; patterns</button>
+      <button id="tabMetronome" class="tab">Metronome</button>
     </div>
   </div>
 
@@ -242,6 +243,355 @@
 
   </div>
 
+  <!-- ───────────────────────────── Metronome view ────────────────────────── -->
+  <div class="view metro-view" id="metronomeView" style="display: none;">
+
+    <div class="metro-stage" id="metroStage">
+
+      <div class="metro-ring-wrap" id="metroRingWrap">
+        <!-- The dial is the start button: it is the biggest thing on the page,
+             so it should be the thing you can hit without aiming. -->
+        <button id="btnMetroRing" class="metro-ring-btn" type="button"
+                aria-label="Start or stop the metronome">
+          <svg id="metroRing" class="metro-ring" viewBox="0 0 260 260" aria-hidden="true"
+               focusable="false">
+
+            <circle class="metro-face" cx="130" cy="130" r="100"></circle>
+            <circle class="metro-track" cx="130" cy="130" r="112"></circle>
+
+            <!-- One tick per subdivision, drawn by app.js. -->
+            <g id="metroTicks"></g>
+
+            <!-- One pip per beat, drawn by app.js. -->
+            <g id="metroPips"></g>
+
+            <!-- The hand: a ring that rides the pips, so the middle of the dial
+                 stays clear. app.js sets transform="rotate(deg 130 130)". -->
+            <g id="metroHand" class="metro-hand" transform="rotate(0 130 130)">
+              <circle class="metro-hand-tip" cx="130" cy="18" r="14.5"></circle>
+            </g>
+
+            <text id="metroBpm" class="metro-bpm" x="130" y="122">72</text>
+            <text class="metro-bpm-caption" x="130" y="144">BPM</text>
+            <text id="metroPos" class="metro-pos" x="130" y="168">Tap the dial to start</text>
+            <text id="metroBeatUnit" class="metro-beat-unit" x="130" y="190">counting quarter notes</text>
+
+          </svg>
+        </button>
+      </div>
+
+      <div class="metro-presets">
+        <div class="bar-label">Tune type</div>
+        <div class="metro-chips" id="metroPresets"></div>
+        <div class="metro-help metro-presets-help">
+          <span class="metro-help-long">Starting points, not rules. Pick the tune
+            type, then move the tempo to whatever you can play cleanly today.</span>
+          <span class="metro-help-short">Starting points &mdash; move the tempo to
+            whatever you can play cleanly.</span>
+        </div>
+        <div class="metro-help metro-presets-help metro-caveat" id="metroCaveat"
+             style="display: none;"></div>
+      </div>
+
+      <div class="metro-transport">
+        <button id="btnMetroPlay" class="pill-btn metro-play">Start</button>
+      </div>
+
+      <!-- Reading order is the doing order at every width: pick the tune type,
+           press Start, then settle the tempo. Nothing here is reordered in CSS,
+           so the tab order and the eye follow the same path. -->
+      <div class="bar metro-tempo">
+        <div class="bar-label">Tempo</div>
+        <button id="btnMetroBpmDown" class="circle-btn metro-step" aria-label="Slower">&minus;</button>
+        <input id="metroBpmInput" class="bpm-input metro-bpm-input" type="text"
+               inputmode="numeric" value="72" title="Click to type a tempo"
+               aria-label="Tempo, type a number">
+        <button id="btnMetroBpmUp" class="circle-btn metro-step" aria-label="Faster">+</button>
+        <input id="metroBpmRange" class="metro-range metro-range-tempo" type="range"
+               min="30" max="240" step="1" value="72" aria-label="Tempo in beats per minute">
+        <button id="btnMetroTap" class="mini-btn metro-tap" type="button">Tap tempo</button>
+      </div>
+
+      <!-- Sits under the tempo because it is about the tempo: which of the tune
+           type's three speeds you are on, and what that speed works out as in
+           bars a minute. Published piping tempos count different note values,
+           so bars a minute is the only figure that compares directly. -->
+      <div class="metro-speed" id="metroSpeedRow">
+        <div class="metro-chips" id="metroSpeedChips"></div>
+        <div class="metro-rate" id="metroRate"></div>
+        <div class="metro-help metro-presets-help" id="metroRateHelp"></div>
+      </div>
+
+      <div class="bar metro-basic-bar">
+        <button id="btnMetroPlainBeat" class="mini-btn" type="button" aria-pressed="false">Just the beat</button>
+        <button id="btnMetroCountIn" class="mini-btn" type="button" aria-pressed="true">Count-in</button>
+        <button id="btnMetroClick" class="mini-btn" type="button" aria-pressed="true">Click</button>
+        <div class="bar-group metro-volume-group">
+          <div class="bar-label">Volume</div>
+          <input id="metroVolume" class="metro-range metro-range-vol" type="range"
+                 min="0" max="100" step="1" value="80" aria-label="Click volume">
+          <div class="metro-val" id="metroVolumeVal">80</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="metro-advanced">
+
+      <button id="btnMetroAdvanced" class="metro-disclosure" type="button"
+              aria-expanded="false" aria-controls="metroAdvancedBody">
+        <span class="metro-disclosure-caret" aria-hidden="true">&#9656;</span>
+        <span>Advanced settings</span>
+      </button>
+
+      <div id="metroAdvancedBody" class="metro-advanced-body" style="display: none;">
+
+        <div class="metro-group">
+          <div class="bar-label">More tune types</div>
+          <div class="metro-control">
+            <div class="metro-chips" id="metroPresetsMore"></div>
+          </div>
+          <div class="metro-help">
+            The rest of the common types. Each one sets everything at once, the
+            same way the row on the card above does.
+          </div>
+        </div>
+
+        <div class="metro-section-head">The bar</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Time signature</div>
+          <div class="metro-control">
+            <select id="metroTimeSig" class="beats-select metro-select" aria-label="Time signature">
+              <option value="2/4">2/4</option>
+              <option value="3/4">3/4</option>
+              <option value="4/4" selected>4/4</option>
+              <option value="2/2">2/2 cut time</option>
+              <option value="6/8">6/8</option>
+              <option value="9/8">9/8</option>
+              <option value="12/8">12/8</option>
+            </select>
+          </div>
+          <div class="metro-help">
+            How many beats fall in a bar, and which note counts as one beat. The
+            6/8, 9/8 and 12/8 settings count dotted quarter notes, so 6/8 gives
+            two clicks a bar rather than six.
+          </div>
+        </div>
+
+        <div class="metro-section-head">The click</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Extra clicks between beats</div>
+          <div class="metro-control">
+            <select id="metroSubdivision" class="beats-select metro-select"
+                    aria-label="Extra clicks between beats">
+              <option value="1" selected>Off &mdash; one click a beat</option>
+              <option value="2">2 &mdash; eighth notes</option>
+              <option value="3">3 &mdash; triplets</option>
+              <option value="4">4 &mdash; sixteenth notes</option>
+              <option value="6">6 &mdash; two triplets</option>
+            </select>
+          </div>
+          <div class="metro-help">
+            Quieter clicks in the gaps between the beats, so you can hear where
+            the small notes belong. Leave it off while you are still learning to
+            land on the beat.
+          </div>
+        </div>
+
+        <div class="metro-group">
+          <div class="bar-label">Accents</div>
+          <div class="metro-control">
+            <div class="metro-accents" id="metroAccents"></div>
+          </div>
+          <div class="metro-help">
+            How loud each beat of the bar is. Tap a beat to cycle it through
+            strong, normal, soft and silent. A silent beat still sounds any extra
+            clicks sitting inside it.
+          </div>
+        </div>
+
+        <div class="metro-group">
+          <div class="bar-label">Click sound</div>
+          <div class="metro-control">
+            <select id="metroSound" class="beats-select metro-select" aria-label="Click sound">
+              <option value="click" selected>Click</option>
+              <option value="wood">Wood</option>
+              <option value="beep">Beep</option>
+            </select>
+          </div>
+          <div class="metro-help">
+            Wood carries over a practice chanter. Beep carries over a full set of
+            pipes.
+          </div>
+        </div>
+
+        <div class="metro-section-head">Rhythm and lift</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Pointing</div>
+          <div class="metro-control">
+            <span class="metro-range-end">Snap</span>
+            <!-- The wrapper carries a tick at the middle of the track: this
+                 slider is symmetric about 50, and without the mark the left end
+                 looks like the neutral one. -->
+            <span class="metro-range-wrap metro-range-centred">
+              <input id="metroPointing" class="metro-range" type="range"
+                     min="15" max="90" step="1" value="50" aria-label="Pointing">
+            </span>
+            <span class="metro-range-end">Pointed</span>
+            <div class="metro-val" id="metroPointingVal">50</div>
+          </div>
+          <div class="metro-help">
+            How unevenly a pair of notes is played. In the middle both notes are
+            the same length &mdash; pipers call that round. To the right the first
+            note gets longer and the second shorter and sharper, the dotted rhythm
+            of a march, which sits around 75. To the left it flips into a short
+            note snapping into a long one, the way a strathspey does.
+          </div>
+        </div>
+
+        <div class="metro-group">
+          <div class="bar-label">Beat stretch</div>
+          <div class="metro-control">
+            <span class="metro-range-end">None</span>
+            <input id="metroPulse" class="metro-range" type="range"
+                   min="0" max="15" step="1" value="0" aria-label="Beat stretch">
+            <span class="metro-range-end">Strong</span>
+            <div class="metro-val" id="metroPulseVal">0</div>
+          </div>
+          <div class="metro-help">
+            Moves the beats themselves, lengthening the first and shortening the
+            rest to pay for it, so the bar still takes exactly as long as it
+            should. This is not what pipers mean by pulsing a strathspey &mdash;
+            that is holding the dotted notes, which is Pointing. A click that
+            moves is no longer something to check your timing against, so leave
+            this at nothing unless you know you want it.
+          </div>
+        </div>
+
+        <div class="metro-section-head">Practice drills</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Silent bars</div>
+          <div class="metro-control">
+            <button id="btnMetroGap" class="mini-btn" type="button" aria-pressed="false">Leave gaps</button>
+            <span class="metro-field">
+              <span class="metro-inline-label">Play</span>
+              <input id="metroGapPlay" class="metro-num" type="number" min="1" max="16"
+                     step="1" value="4" inputmode="numeric" aria-label="Bars played">
+              <span class="metro-inline-label">bars</span>
+            </span>
+            <span class="metro-field">
+              <span class="metro-inline-label">silent</span>
+              <input id="metroGapMute" class="metro-num" type="number" min="1" max="16"
+                     step="1" value="4" inputmode="numeric" aria-label="Bars silent">
+              <span class="metro-inline-label">bars</span>
+            </span>
+            <button id="btnMetroGapHide" class="mini-btn" type="button" aria-pressed="false">Hide the ring</button>
+          </div>
+          <div class="metro-help">
+            Plays for a few bars, then goes quiet for a few while you keep going.
+            The count carries on underneath, so when it comes back you find out
+            whether your tempo held.
+          </div>
+        </div>
+
+        <div class="metro-group">
+          <div class="bar-label">Tempo ramp</div>
+          <div class="metro-control">
+            <button id="btnMetroRamp" class="mini-btn" type="button" aria-pressed="false">Raise the tempo</button>
+            <span class="metro-field">
+              <span class="metro-inline-label">Every</span>
+              <input id="metroRampBars" class="metro-num" type="number" min="1" max="32"
+                     step="1" value="4" inputmode="numeric" aria-label="Bars between steps">
+              <span class="metro-inline-label">bars</span>
+            </span>
+            <span class="metro-field">
+              <span class="metro-inline-label">add</span>
+              <input id="metroRampStep" class="metro-num" type="number" min="1" max="20"
+                     step="1" value="2" inputmode="numeric" aria-label="Beats per minute added">
+              <span class="metro-inline-label">BPM</span>
+            </span>
+            <span class="metro-field">
+              <span class="metro-inline-label">up to</span>
+              <input id="metroRampMax" class="metro-num" type="number" min="30" max="240"
+                     step="1" value="120" inputmode="numeric" aria-label="Highest tempo">
+              <span class="metro-inline-label">BPM</span>
+            </span>
+          </div>
+          <div class="metro-help">
+            Raises the tempo a step at a time and stops at the top figure you set.
+            Start a tune slower than you can play it and let it creep up on you.
+          </div>
+        </div>
+
+        <div class="metro-section-head">Playing along</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Drone</div>
+          <div class="metro-control">
+            <button id="btnMetroDrone" class="mini-btn" type="button" aria-pressed="false">Play a drone</button>
+            <span class="metro-field">
+              <span class="metro-inline-label">Level</span>
+              <input id="metroDroneLevel" class="metro-range" type="range"
+                     min="0" max="30" step="1" value="10" aria-label="Drone level">
+              <div class="metro-val" id="metroDroneVal">10</div>
+            </span>
+          </div>
+          <div class="metro-help">
+            A quiet drone under the click, pitched from the Low A you set for the
+            microphone. Useful for tuning against. The bass note is too low for a
+            phone speaker, so use headphones to hear all of it.
+          </div>
+        </div>
+
+        <div class="metro-section-head">When you cannot hear it</div>
+
+        <div class="metro-group">
+          <div class="bar-label">Flash the screen</div>
+          <div class="metro-control">
+            <button id="btnMetroFlash" class="mini-btn" type="button" aria-pressed="false">Flash on beat one</button>
+          </div>
+          <div class="metro-help">
+            Flashes the whole panel on the first beat of the bar, for practising
+            where the click cannot be heard over the pipes.
+          </div>
+        </div>
+
+        <div class="metro-group" id="metroHapticsGroup">
+          <div class="bar-label">Buzz the phone</div>
+          <div class="metro-control">
+            <button id="btnMetroHaptics" class="mini-btn" type="button" aria-pressed="false">Buzz on beat one</button>
+          </div>
+          <div class="metro-help">
+            Buzzes the phone on the first beat of the bar.
+          </div>
+        </div>
+
+        <!-- An absence is worth explaining, in the place somebody would go
+             looking for it. -->
+        <div class="metro-group">
+          <div class="bar-label">Piobaireachd</div>
+          <div class="metro-help">
+            There is no piobaireachd setting. The ground of a piobaireachd is not
+            played in strict time, and a click would teach you the wrong thing.
+            Use the plain click for drilling the movements in the variations if
+            you want even fingers.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footnote metro-footnote">
+      Tap the dial or press Space to start &middot; tap Tap tempo four times along
+      with a tune to set its speed by ear
+    </div>
+
+  </div>
+
   <div class="overlay" id="resultOverlay" style="display: none; z-index: 45;">
     <div class="modal" style="padding: 36px; gap: 26px;">
 
@@ -313,6 +663,7 @@
 
 </div>
 
+<script src="metronome.js"></script>
 <script src="app.js"></script>
 <script>
   // Registered relative to the page so the app works from a GitHub Pages

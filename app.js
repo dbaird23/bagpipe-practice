@@ -122,6 +122,111 @@
   const REF_MIN = 200;
   const REF_MAX = 1000;
 
+  const METRO_KEY = "bagpipe.metronome.v1";
+  const METRO_SPEEDS = ["Slow", "Working", "Target"];
+  const ACCENT_CLASS = ["is-silent", "is-soft", "is-normal", "is-strong"];
+  const ACCENT_WORD = ["Silent", "Soft", "Normal", "Strong"];
+
+  // Tune-type presets, post piping review. Each one sets the whole metronome at
+  // once and carries three tempos, because a beginner should start at Slow and
+  // work up rather than open the app at competition speed.
+  //
+  // Two figures here are load-bearing and have already been got wrong once:
+  // the reel counts *half notes* — it is in cut time, two beats to the bar, so
+  // it runs about half again as many bars a minute as a strathspey — and
+  // pointing 0.75 is the written dot, not an interpretation laid on top of it.
+  // Beat stretch is 0 everywhere, including the strathspey: strathspey lift
+  // comes from pointing and accents over an even click, so the click stays a
+  // timing reference you can be wrong against.
+  const METRO_PRESETS = [
+    { id: "plain", label: "Plain click", beginner: true,
+      beatsPerBar: 4, beatUnit: 4, compound: false, subdivision: 1,
+      pointing: 0.5, accents: [3, 2, 2, 2], tempos: [60, 80, 100] },
+    { id: "march24", label: "2/4 March", beginner: true,
+      beatsPerBar: 2, beatUnit: 4, compound: false, subdivision: 2,
+      pointing: 0.75, accents: [3, 2], tempos: [56, 64, 72] },
+    { id: "retreat34", label: "3/4 Retreat",
+      beatsPerBar: 3, beatUnit: 4, compound: false, subdivision: 2,
+      pointing: 0.75, accents: [3, 2, 2], tempos: [72, 80, 88] },
+    { id: "march44", label: "4/4 March", beginner: true,
+      beatsPerBar: 4, beatUnit: 4, compound: false, subdivision: 2,
+      pointing: 0.75, accents: [3, 2, 2, 2], tempos: [72, 80, 88] },
+    { id: "march68", label: "6/8 March", beginner: true,
+      beatsPerBar: 2, beatUnit: "dotted4", compound: true, subdivision: 3,
+      pointing: 0.75, accents: [3, 2], tempos: [64, 70, 76] },
+    { id: "retreat98", label: "9/8 Retreat",
+      beatsPerBar: 3, beatUnit: "dotted4", compound: true, subdivision: 3,
+      pointing: 0.75, accents: [3, 2, 2], tempos: [64, 70, 76] },
+    { id: "strathspey", label: "Strathspey", beginner: true,
+      beatsPerBar: 4, beatUnit: 4, compound: false, subdivision: 2,
+      pointing: [0.85, 0.80, 0.85, 0.80], accents: [3, 1, 2, 1], tempos: [96, 108, 116] },
+    { id: "strathspey3", label: "Strathspey, triplet feel",
+      beatsPerBar: 4, beatUnit: 4, compound: false, subdivision: 3, subMutes: [1],
+      pointing: 0.5, accents: [3, 1, 2, 1], tempos: [96, 108, 116] },
+    { id: "reel", label: "Reel", beginner: true,
+      beatsPerBar: 2, beatUnit: 2, compound: false, subdivision: 2,
+      pointing: 0.5, accents: [3, 2], tempos: [70, 78, 86] },
+    { id: "reelpointed", label: "Reel, pointed",
+      beatsPerBar: 2, beatUnit: 2, compound: false, subdivision: 4,
+      pointing: 0.62, accents: [3, 2], tempos: [70, 78, 86] },
+    { id: "jig", label: "Jig", beginner: true,
+      beatsPerBar: 2, beatUnit: "dotted4", compound: true, subdivision: 3,
+      pointing: 0.5, accents: [3, 2], tempos: [92, 104, 116] },
+    { id: "hornpipe", label: "Hornpipe",
+      beatsPerBar: 2, beatUnit: 4, compound: false, subdivision: 2,
+      pointing: 0.75, accents: [3, 2], tempos: [64, 72, 80] },
+    { id: "air44", label: "Slow air (4/4)",
+      beatsPerBar: 4, beatUnit: 4, compound: false, subdivision: 1,
+      pointing: 0.5, accents: [3, 2, 2, 2], tempos: [50, 60, 70],
+      caveat: "A slow air is not played strictly in time. Use this to learn the shape, then turn the click off." },
+    { id: "air34", label: "Slow air (3/4)",
+      beatsPerBar: 3, beatUnit: 4, compound: false, subdivision: 1,
+      pointing: 0.5, accents: [3, 2, 2], tempos: [50, 60, 70],
+      caveat: "A slow air is not played strictly in time. Use this to learn the shape, then turn the click off." }
+  ];
+
+  const metroPresetById = (id) => METRO_PRESETS.find((p) => p.id === id) || null;
+
+  function metroDefaults() {
+    return {
+      config: null,          // filled from the engine, which validates it
+      volume: 0.8,           // what the slider shows; the engine is fed 0 with the click off
+      clickOn: true,
+      advancedOpen: false,
+      presetId: "plain",
+      speedLevel: 1,         // index into a preset's three tempos, -1 once the tempo is moved by hand
+      modified: false,
+      flash: false,
+      haptics: false
+    };
+  }
+
+  function loadMetro() {
+    const base = metroDefaults();
+    try {
+      const raw = JSON.parse(localStorage.getItem(METRO_KEY) || "null");
+      if (!raw || typeof raw !== "object") return base;
+      const vol = Number(raw.volume);
+      return {
+        // Anything at all may come back from storage; the engine normalizes the
+        // config on the way in, so only the host's own fields are checked here.
+        config: raw.config && typeof raw.config === "object" ? raw.config : null,
+        volume: Number.isFinite(vol) && vol >= 0 && vol <= 1 ? vol : base.volume,
+        clickOn: raw.clickOn === undefined ? base.clickOn : !!raw.clickOn,
+        advancedOpen: !!raw.advancedOpen,
+        presetId: metroPresetById(raw.presetId) ? raw.presetId : base.presetId,
+        speedLevel: [0, 1, 2].indexOf(raw.speedLevel) !== -1 ? raw.speedLevel : -1,
+        modified: !!raw.modified,
+        flash: !!raw.flash,
+        haptics: !!raw.haptics
+      };
+    } catch (err) { return base; }
+  }
+
+  function saveMetro() {
+    try { localStorage.setItem(METRO_KEY, JSON.stringify(state.metro)); } catch (err) { /* storage unavailable */ }
+  }
+
   function loadRef() {
     try {
       const v = parseFloat(localStorage.getItem(REF_KEY));
@@ -269,11 +374,13 @@
     streak: 0,
     lastRun: null,
     history: [],
-    saved: []
+    saved: [],
+    metro: null
   };
   state.history = loadHistory();
   state.saved = loadSaved();
   state.refA = loadRef();
+  state.metro = loadMetro();
 
   let ac = null;
   let timer = null;
@@ -409,6 +516,53 @@
     btnDialogCancel: el("btnDialogCancel"),
     btnDialogSkip: el("btnDialogSkip"),
     btnDialogNext: el("btnDialogNext"),
+    // metronome
+    tabMetronome: el("tabMetronome"),
+    metronomeView: el("metronomeView"),
+    metroStage: el("metroStage"),
+    metroRingWrap: el("metroRingWrap"),
+    metroPips: el("metroPips"),
+    metroTicks: el("metroTicks"),
+    metroHand: el("metroHand"),
+    metroBpm: el("metroBpm"),
+    metroBeatUnit: el("metroBeatUnit"),
+    metroPos: el("metroPos"),
+    btnMetroPlay: el("btnMetroPlay"),
+    btnMetroTap: el("btnMetroTap"),
+    btnMetroBpmDown: el("btnMetroBpmDown"),
+    btnMetroBpmUp: el("btnMetroBpmUp"),
+    metroBpmRange: el("metroBpmRange"),
+    metroBpmInput: el("metroBpmInput"),
+    metroPresets: el("metroPresets"),
+    metroPresetsMore: el("metroPresetsMore"),
+    btnMetroCountIn: el("btnMetroCountIn"),
+    btnMetroClick: el("btnMetroClick"),
+    metroVolume: el("metroVolume"),
+    metroVolumeVal: el("metroVolumeVal"),
+    btnMetroAdvanced: el("btnMetroAdvanced"),
+    metroAdvancedBody: el("metroAdvancedBody"),
+    metroTimeSig: el("metroTimeSig"),
+    metroSubdivision: el("metroSubdivision"),
+    metroAccents: el("metroAccents"),
+    metroPointing: el("metroPointing"),
+    metroPointingVal: el("metroPointingVal"),
+    metroPulse: el("metroPulse"),
+    metroPulseVal: el("metroPulseVal"),
+    btnMetroGap: el("btnMetroGap"),
+    metroGapPlay: el("metroGapPlay"),
+    metroGapMute: el("metroGapMute"),
+    btnMetroGapHide: el("btnMetroGapHide"),
+    btnMetroRamp: el("btnMetroRamp"),
+    metroRampBars: el("metroRampBars"),
+    metroRampStep: el("metroRampStep"),
+    metroRampMax: el("metroRampMax"),
+    btnMetroDrone: el("btnMetroDrone"),
+    metroDroneLevel: el("metroDroneLevel"),
+    metroDroneVal: el("metroDroneVal"),
+    metroSound: el("metroSound"),
+    btnMetroFlash: el("btnMetroFlash"),
+    btnMetroHaptics: el("btnMetroHaptics"),
+    metroHapticsGroup: el("metroHapticsGroup"),
     // shared across both views
     bpmSliders: all(".js-bpm"),
     bpmVals: all(".js-bpm-val"),
@@ -625,6 +779,10 @@
     stopDemo();
     stopClock();
     stopPatternClock();
+    // The metronome keeps its own clock and audio, so leaving the view has to
+    // stop it as well; arriving here from any tab has already stopped the
+    // flashcard and pattern clocks above.
+    stopMetronome();
     state.view = view;
     state.playing = false;
     state.beat = 0;
@@ -1285,6 +1443,7 @@
     if (!Number.isFinite(v)) { render(); return; }
     state.refA = Math.min(REF_MAX, Math.max(REF_MIN, Math.round(v)));
     saveRef();
+    syncMetroRef();
     render();
   }
 
@@ -1610,26 +1769,548 @@
       : "#e8ded9; background: #ffffff; color: #b3a49d;");
   }
 
+  // ── metronome ──
+  //
+  // A third view with its own clock, its own audio and its own state.
+  // metronome.js owns the timing and the sound; everything from here to the
+  // next section is state, wiring and the ring. It shares exactly two things
+  // with the rest of the app: audio(), and state.refA for the drone's pitch.
+
+  const PM = window.PipeMetronome || null;
+
+  let metro = null;
+  let metroRaf = null;
+  let metroPipEls = [];
+  let metroActivePip = -1;   // which pip currently carries .is-active
+  let metroPosText = "";     // last string written to #metroPos
+  let metroHandAngle = 0;    // degrees round the bar, 0 at the downbeat
+  let metroHandTurns = 0;    // whole turns added so the hand never rotates back
+  let metroRingHidden = false;
+  let metroFlashTimer = null;
+  let metroWakeLock = null;
+  let metroLastSub = 0;      // subdivision to come back to after "just the beat"
+
+  const HAS_VIBRATE = typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
+
+  // What the dial says when it is stopped. It matches the markup's own wording,
+  // because the dial is the start button and that is what the line is telling
+  // you to do.
+  const METRO_IDLE = "Tap the dial to start";
+
+  // How far pointing may be pushed at each subdivision. The limit is
+  // arithmetic, not taste: inside a beat of duration d, the k=3 rule leaves
+  // d(1-p)/3 between its second and third onsets and k=6 leaves half of that,
+  // so at p = 0.85 and a fast tempo the pair collapses to about ten
+  // milliseconds and reads as a flam rather than a rhythm. k=2 and k=4 split
+  // wider spans and stay legible across the whole range.
+  const POINT_RANGE = { 1: [15, 85], 2: [15, 85], 3: [25, 75], 4: [15, 85], 6: [35, 65] };
+
+  const metroPointRange = (k) => POINT_RANGE[k] || POINT_RANGE[1];
+
+  // A preset may point each beat of the bar differently, which is what a
+  // strathspey needs. One slider cannot show four values, so it shows the
+  // average and moving it replaces the array with a single figure.
+  function pointScalar(p) {
+    if (Array.isArray(p) && p.length) return p.reduce((a, b) => a + b, 0) / p.length;
+    return Number.isFinite(p) ? p : 0.5;
+  }
+
+  function metroConfig() { return state.metro.config || (PM ? PM.DEFAULTS : {}); }
+
+  function metroSig(c) {
+    if (c.compound) return (c.beatsPerBar * 3) + "/8";
+    if (c.beatUnit === 2) return c.beatsPerBar + "/2";
+    return c.beatsPerBar + "/4";
+  }
+
+  // Which note value the tempo number counts. This is on screen at all times
+  // because published piping tempos disagree with each other mostly by
+  // counting different units — a reel at 86 is minims, and reading it as
+  // crotchets plays the tune at half speed.
+  function metroUnit(c) {
+    if (c.compound) {
+      return { caption: "counting dotted quarters", glyph: "♩.",
+        help: "The tempo counts dotted quarter notes, which is the beat of 6/8 and 9/8 — two clicks in a 6/8 bar, not six." };
+    }
+    if (c.beatUnit === 2) {
+      return { caption: "counting half notes", glyph: "𝅗𝅥",
+        help: "The tempo counts half notes (minims). A reel is in cut time, two beats to the bar, so it covers far more bars a minute than the number suggests." };
+    }
+    return { caption: "counting quarter notes", glyph: "♩",
+      help: "The tempo counts quarter notes (crotchets)." };
+  }
+
+  function barsPerMin(c) {
+    const bars = c.bpm / Math.max(1, c.beatsPerBar);
+    return Math.abs(bars - Math.round(bars)) < 0.05 ? String(Math.round(bars)) : bars.toFixed(1);
+  }
+
+  // Three things the spec asks for that the markup has no home for: the
+  // Slow / Working / Target tempo picker, the bars-a-minute readout beside the
+  // tempo, and two lines of plain English. They are built here rather than in
+  // index.html because this file does not own that file; they use only classes
+  // that already exist.
+  // The speed chips are the one part of the metronome card built here rather
+  // than written out in the markup, because their labels live in METRO_SPEEDS
+  // next to the preset table they belong to. Everything else this used to
+  // create — the rate readout, the tune-type caveat, the cut-time option and
+  // the piobaireachd note — is now in index.html, so where it sits on the card
+  // is a decision somebody made rather than a side effect of insertion order.
+  function buildMetroExtras() {
+    dom.metroSpeedChips = el("metroSpeedChips");
+    dom.metroRate = el("metroRate");
+    dom.metroRateHelp = el("metroRateHelp");
+    dom.metroCaveat = el("metroCaveat");
+    if (!dom.metroSpeedChips) return;
+    dom.metroSpeedChips.innerHTML = METRO_SPEEDS.map((label, i) =>
+      '<button class="mini-btn" type="button" data-speed="' + i + '" aria-pressed="false">' +
+      label + "</button>").join("");
+  }
+
+  // Everything goes to the engine and comes back normalized, so the controls
+  // always show what is actually being played rather than what was asked for.
+  function setMetro(patch, keepPreset) {
+    if (!metro) return;
+    metro.setConfig(patch);
+    state.metro.config = metro.getConfig();
+    // A chip claims "this is a 2/4 march". Once one of the settings behind that
+    // claim is changed by hand it says so rather than going on pretending.
+    // Tempo is deliberately not one of them: the three speed buttons and the
+    // slider are how a preset is meant to be used.
+    if (!keepPreset) state.metro.modified = true;
+    saveMetro();
+    render();
+  }
+
+  function presetConfig(p, level) {
+    const cfg = {
+      bpm: p.tempos[Math.min(2, Math.max(0, level))],
+      beatsPerBar: p.beatsPerBar,
+      beatUnit: p.beatUnit,
+      compound: !!p.compound,
+      subdivision: p.subdivision,
+      subMutes: (p.subMutes || []).slice(),
+      accents: p.accents.slice(),
+      pointing: Array.isArray(p.pointing) ? p.pointing.slice() : p.pointing
+    };
+    // Strathspey lift comes from pointing and accents over an even click grid,
+    // so no preset moves the beats themselves.
+    cfg.beatStretch = 0;
+    return cfg;
+  }
+
+  function applyMetroPreset(id) {
+    const p = metroPresetById(id);
+    if (!p || !metro) return;
+    state.metro.presetId = p.id;
+    state.metro.speedLevel = 1;      // a preset always lands on Working
+    state.metro.modified = false;
+    setMetro(presetConfig(p, 1), true);
+  }
+
+  function setMetroSpeed(level) {
+    const p = metroPresetById(state.metro.presetId);
+    if (!p || !metro) return;
+    state.metro.speedLevel = level;
+    setMetro({ bpm: p.tempos[level] }, true);
+  }
+
+  function setMetroBpm(v) {
+    if (!metro || !Number.isFinite(v)) { render(); return; }
+    const c = metroConfig();
+    const bpm = Math.min(c.maxBpm, Math.max(c.minBpm, Math.round(v)));
+    const p = metroPresetById(state.metro.presetId);
+    // The speed buttons stay lit only while the tempo is still one of theirs.
+    state.metro.speedLevel = p ? p.tempos.indexOf(bpm) : -1;
+    setMetro({ bpm: bpm }, true);
+  }
+
+  // The click is switched off by feeding the engine a volume of zero rather
+  // than by muting it there, so the drone carries on underneath — which is the
+  // mode a slow air wants.
+  function pushMetroVolume() {
+    if (!metro) return;
+    metro.setConfig({ volume: state.metro.clickOn ? state.metro.volume : 0 });
+    state.metro.config = metro.getConfig();
+  }
+
+  function setMetroSubdivision(k) {
+    const range = metroPointRange(k);
+    const p = pointScalar(metroConfig().pointing);
+    const clamped = Math.min(range[1] / 100, Math.max(range[0] / 100, p));
+    // Moving into a denser subdivision can leave the pointing where the onsets
+    // would land on top of each other, so it comes back into range with it.
+    setMetro({ subdivision: k, pointing: clamped });
+  }
+
+  function metroTimeSigChange(v) {
+    const parts = String(v).split("/");
+    const n = Math.max(1, Math.round(Number(parts[0])) || 4);
+    const d = Number(parts[1]);
+    if (d === 8) setMetro({ beatsPerBar: Math.max(1, Math.round(n / 3)), compound: true, beatUnit: "dotted4" });
+    else if (d === 2) setMetro({ beatsPerBar: n, compound: false, beatUnit: 2 });
+    else setMetro({ beatsPerBar: n, compound: false, beatUnit: 4 });
+  }
+
+  function syncMetroRef() {
+    // The drone is pitched from the chanter's Low A, so it follows the mic
+    // calibration rather than keeping a reference of its own.
+    if (metro) metro.setConfig({ refHz: state.refA });
+  }
+
+  // ── metronome: the ring ──
+  //
+  // render() rebuilds HTML and is called many times a second while the mic is
+  // on, so it must never be what moves the hand. This loop runs only while the
+  // metronome is running, reads the engine's position once a frame, and touches
+  // nothing but one transform, one class and one string.
+
+  function metroFrame() {
+    if (!metro || !metro.isRunning()) { metroRaf = null; return; }
+    metroRaf = requestAnimationFrame(metroFrame);
+
+    const c = metroConfig();
+    const pos = metro.position();
+    const beat = pos.beat > 0 ? pos.beat : 1;
+    const raw = (((beat - 1) + pos.phase) / Math.max(1, c.beatsPerBar)) * 360;
+    // Angles accumulate instead of wrapping to zero at the downbeat, so the
+    // hand only ever turns forwards however the ring is styled: a smaller angle
+    // handed to a transitioned transform would sweep back round the dial.
+    if (raw < metroHandAngle - 180) metroHandTurns += 360;
+    metroHandAngle = raw;
+    dom.metroHand.setAttribute("transform",
+      "rotate(" + (raw + metroHandTurns).toFixed(2) + " 130 130)");
+
+    const idx = beat - 1;
+    if (idx !== metroActivePip) {
+      metroPipEls.forEach((pip, i) => pip.classList.toggle("is-active", i === idx));
+      metroActivePip = idx;
+    }
+
+    // In the fraction of a second between start() and the first scheduled
+    // sound there is no event to report yet, so the bar reads 0; the bar that
+    // is about to begin is bar 1.
+    const bar = Math.max(1, pos.bar);
+    const text = pos.countIn > 0 ? "Count-in — " + pos.countIn
+      : pos.inGap ? "Bar " + bar + " · silent"
+      : "Bar " + bar + " · beat " + beat;
+    if (text !== metroPosText) {
+      dom.metroPos.textContent = text;
+      metroPosText = text;
+    }
+
+    const hide = !!(pos.inGap && c.gap.hideVisual);
+    if (hide !== metroRingHidden) {
+      // Hidden rather than removed, so the card does not resize every gap.
+      dom.metroRingWrap.style.visibility = hide ? "hidden" : "";
+      metroRingHidden = hide;
+    }
+  }
+
+  function metroOnBar(info) {
+    // Through a gap the point is to keep time unaided, so neither the flash nor
+    // the buzz gives the downbeat away.
+    if (info.inGap) return;
+    if (state.metro.flash && dom.metroStage) {
+      dom.metroStage.classList.add("metro-flash");
+      clearTimeout(metroFlashTimer);
+      metroFlashTimer = setTimeout(() => dom.metroStage.classList.remove("metro-flash"), 110);
+    }
+    if (state.metro.haptics && HAS_VIBRATE) {
+      try { navigator.vibrate(35); } catch (err) { /* refused while the page is backgrounded */ }
+    }
+  }
+
+  function metroOnTempo(bpm) {
+    // The ramp moved the tempo, so no speed button describes it any more. The
+    // new figure is not saved: the ramp is a drill, not a setting to come back
+    // to at its ceiling tomorrow.
+    if (!metro) return;
+    state.metro.config = metro.getConfig();
+    state.metro.speedLevel = -1;
+    if (state.view === "metronome") render();
+  }
+
+  function metroOnStop() {
+    if (metroRaf) { cancelAnimationFrame(metroRaf); metroRaf = null; }
+    clearTimeout(metroFlashTimer);
+    releaseMetroWake();
+    if (dom.metroStage) dom.metroStage.classList.remove("metro-flash");
+    if (dom.metroRingWrap) dom.metroRingWrap.style.visibility = "";
+    metroRingHidden = false;
+    render();
+  }
+
+  // Screen Wake Lock, where it exists: a metronome on a music stand is being
+  // watched, not touched, and the screen dimming mid-tune is the one thing that
+  // makes the ring useless.
+  function acquireMetroWake() {
+    if (!navigator.wakeLock || metroWakeLock) return;
+    try {
+      navigator.wakeLock.request("screen").then((lock) => {
+        if (!metro || !metro.isRunning()) { try { lock.release(); } catch (err) { /* gone */ } return; }
+        metroWakeLock = lock;
+      }).catch(() => { metroWakeLock = null; });
+    } catch (err) { metroWakeLock = null; }
+  }
+
+  function releaseMetroWake() {
+    if (!metroWakeLock) return;
+    const lock = metroWakeLock;
+    metroWakeLock = null;
+    try { lock.release(); } catch (err) { /* already released */ }
+  }
+
+  function startMetronome() {
+    if (!metro || metro.isRunning()) return;
+    // start() builds the AudioContext, which iOS only hands over inside a
+    // gesture — every caller here is a tap or a key press.
+    if (!metro.start()) { render(); return; }
+    metroHandAngle = 0;
+    metroHandTurns = 0;
+    metroActivePip = -1;
+    metroPosText = "";
+    acquireMetroWake();
+    if (!metroRaf) metroRaf = requestAnimationFrame(metroFrame);
+    render();
+  }
+
+  function stopMetronome() {
+    if (!metro || !metro.isRunning()) return;
+    metro.stop();   // onStop tidies up the loop, the wake lock and the ring
+  }
+
+  function toggleMetronome() {
+    if (!metro) return;
+    if (metro.isRunning()) stopMetronome(); else startMetronome();
+  }
+
+  // ── metronome: render ──
+
+  function buildPips(n, accents) {
+    let out = "";
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;         // 0 is beat one, at twelve o'clock
+      const x = 130 + 112 * Math.sin(a);
+      const y = 130 - 112 * Math.cos(a);
+      const lx = 130 + 134 * Math.sin(a);
+      const ly = 130 - 134 * Math.cos(a);
+      out += '<circle class="metro-pip ' + ACCENT_CLASS[accents[i]] + '" cx="' + x.toFixed(2) +
+        '" cy="' + y.toFixed(2) + '" r="7"></circle>' +
+        '<text class="metro-pip-label" x="' + lx.toFixed(2) + '" y="' + ly.toFixed(2) + '">' +
+        (i + 1) + "</text>";
+    }
+    return out;
+  }
+
+  function buildPresetChips(list) {
+    return list.map((p) =>
+      '<button class="metro-preset" type="button" data-preset="' + esc(p.id) + '">' +
+      esc(p.label) + "</button>").join("");
+  }
+
+  // Where each subdivision falls inside a beat, as a fraction of the beat.
+  // Taken from the engine's own maths so a pointed subdivision sits where it
+  // will actually sound rather than at an even division of the dial.
+  function subFractions(k, pointing) {
+    if (PM && PM._pure && PM._pure.subOnsets) return PM._pure.subOnsets(1, k, pointing);
+    const out = [];
+    for (let i = 0; i < k; i++) out.push(i / k);
+    return out;
+  }
+
+  function buildTicks(c) {
+    const k = c.subdivision;
+    if (k <= 1) return "";
+    const n = c.beatsPerBar;
+    let out = "";
+    for (let i = 0; i < n; i++) {
+      const p = Array.isArray(c.pointing) ? c.pointing[i % c.pointing.length] : c.pointing;
+      subFractions(k, p).forEach((frac, s) => {
+        // Index 0 is the beat itself, which already has a pip.
+        if (s === 0 || c.subMutes.indexOf(s) !== -1) return;
+        const a = ((i + frac) / n) * Math.PI * 2;
+        out += '<line class="metro-tick" x1="' + (130 + 99 * Math.sin(a)).toFixed(2) +
+          '" y1="' + (130 - 99 * Math.cos(a)).toFixed(2) +
+          '" x2="' + (130 + 107 * Math.sin(a)).toFixed(2) +
+          '" y2="' + (130 - 107 * Math.cos(a)).toFixed(2) + '"></line>';
+      });
+    }
+    return out;
+  }
+
+  function buildAccents(accents) {
+    return accents.map((a, i) =>
+      '<button class="metro-accent ' + ACCENT_CLASS[a] + '" type="button" data-beat="' + i +
+      '" aria-label="Beat ' + (i + 1) + ", " + ACCENT_WORD[a].toLowerCase() + '">' +
+      '<span class="metro-accent-num">' + (i + 1) + "</span>" +
+      '<span class="metro-accent-word">' + ACCENT_WORD[a] + "</span></button>").join("");
+  }
+
+  // The small toggles carry their own label in the markup — "Count-in",
+  // "Play a drone" — so the state is shown by the fill and by aria-pressed
+  // rather than by rewriting the words underneath the user.
+  function toggleBtn(btn, on) {
+    if (!btn) return;
+    btn.classList.toggle("is-on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function setNum(input, value) {
+    if (input && document.activeElement !== input) input.value = value;
+  }
+
+  function renderMetro() {
+    const m = state.metro;
+    const c = metroConfig();
+    const running = !!metro && metro.isRunning();
+    const n = c.beatsPerBar;
+    const unit = metroUnit(c);
+
+    const pipSig = n + ":" + c.accents.join(",");
+    setHtml(dom.metroPips, "metroPips", pipSig, () => buildPips(n, c.accents));
+    if (htmlCache.metroPipsBuilt !== pipSig) {
+      htmlCache.metroPipsBuilt = pipSig;
+      metroPipEls = Array.from(dom.metroPips.querySelectorAll(".metro-pip"));
+      metroActivePip = -1;
+    }
+    if (dom.metroTicks) {
+      const tickSig = [n, c.subdivision, JSON.stringify(c.pointing), c.subMutes.join(",")].join("|");
+      setHtml(dom.metroTicks, "metroTicks", tickSig, () => buildTicks(c));
+    }
+
+    dom.metroBpm.textContent = Math.round(c.bpm);
+    dom.metroBeatUnit.textContent = unit.caption;
+    if (!running) {
+      dom.metroHand.setAttribute("transform", "rotate(0 130 130)");
+      dom.metroPos.textContent = METRO_IDLE;
+      metroPosText = METRO_IDLE;
+      metroPipEls.forEach((pip) => pip.classList.remove("is-active"));
+      metroActivePip = -1;
+    }
+
+    dom.btnMetroPlay.textContent = running ? "Stop" : "Start";
+    dom.btnMetroPlay.style.cssText = running
+      ? "border-color: #997373; background: #997373; color: #fff;" : "";
+    if (dom.btnMetroRing) dom.btnMetroRing.setAttribute("aria-pressed", running ? "true" : "false");
+
+    setNum(dom.metroBpmRange, c.bpm);
+    setNum(dom.metroBpmInput, Math.round(c.bpm));
+
+    // Bars a minute is the cheapest guard against the unit confusion that put
+    // the reel at half speed in an earlier draft of the preset table: it makes
+    // two tempos counted in different note values directly comparable.
+    if (dom.metroRate) {
+      dom.metroRate.innerHTML = '<span style="font-family: \'Noto Music\', serif;">' +
+        unit.glyph + "</span> = " + Math.round(c.bpm) + " · " + barsPerMin(c) + " bars a minute";
+    }
+    if (dom.metroRateHelp) dom.metroRateHelp.textContent = unit.help;
+
+    setHtml(dom.metroPresets, "metroPresets", "built",
+      () => buildPresetChips(METRO_PRESETS.filter((p) => p.beginner)));
+    setHtml(dom.metroPresetsMore, "metroPresetsMore", "built",
+      () => buildPresetChips(METRO_PRESETS.filter((p) => !p.beginner)));
+    all(".metro-preset").forEach((b) => {
+      const on = b.dataset.preset === m.presetId;
+      b.classList.toggle("is-selected", on);
+      b.classList.toggle("is-modified", on && m.modified);
+    });
+
+    if (dom.metroSpeedChips) {
+      dom.metroSpeedChips.querySelectorAll("[data-speed]").forEach((b) => {
+        const on = Number(b.dataset.speed) === m.speedLevel;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    const preset = metroPresetById(m.presetId);
+    if (dom.metroCaveat) {
+      // The caveat is about the kind of tune, not about the settings, so it
+      // stays up after a control has been moved.
+      const caveat = preset && preset.caveat ? preset.caveat : "";
+      dom.metroCaveat.textContent = caveat;
+      dom.metroCaveat.style.display = caveat ? "" : "none";
+    }
+
+    toggleBtn(dom.btnMetroCountIn, c.countInBars > 0);
+    toggleBtn(dom.btnMetroClick, m.clickOn);
+    toggleBtn(dom.btnMetroPlainBeat, c.subdivision === 1);
+    setNum(dom.metroVolume, Math.round(m.volume * 100));
+    dom.metroVolumeVal.textContent = Math.round(m.volume * 100);
+
+    dom.metroAdvancedBody.style.display = m.advancedOpen ? "" : "none";
+    dom.btnMetroAdvanced.setAttribute("aria-expanded", m.advancedOpen ? "true" : "false");
+
+    const sig = metroSig(c);
+    if (document.activeElement !== dom.metroTimeSig &&
+        dom.metroTimeSig.querySelector('option[value="' + sig + '"]')) {
+      dom.metroTimeSig.value = sig;
+    }
+    setNum(dom.metroSubdivision, String(c.subdivision));
+
+    const accentSig = n + ":" + c.accents.join(",");
+    setHtml(dom.metroAccents, "metroAccents", accentSig, () => buildAccents(c.accents));
+
+    // The slider's range narrows with the subdivision so it cannot ask for two
+    // onsets ten milliseconds apart; see POINT_RANGE above.
+    const range = metroPointRange(c.subdivision);
+    dom.metroPointing.min = String(range[0]);
+    dom.metroPointing.max = String(range[1]);
+    dom.metroPointing.disabled = c.subdivision === 1;
+    const point = Math.round(pointScalar(c.pointing) * 100);
+    setNum(dom.metroPointing, point);
+    dom.metroPointingVal.textContent = c.subdivision === 1 ? "—" : point;
+
+    setNum(dom.metroPulse, Math.round(c.beatStretch * 100));
+    dom.metroPulseVal.textContent = Math.round(c.beatStretch * 100);
+
+    toggleBtn(dom.btnMetroGap, c.gap.on);
+    setNum(dom.metroGapPlay, c.gap.playBars);
+    setNum(dom.metroGapMute, c.gap.muteBars);
+    toggleBtn(dom.btnMetroGapHide, c.gap.hideVisual);
+
+    toggleBtn(dom.btnMetroRamp, c.ramp.on);
+    setNum(dom.metroRampBars, c.ramp.everyBars);
+    setNum(dom.metroRampStep, c.ramp.stepBpm);
+    setNum(dom.metroRampMax, Math.round(c.ramp.maxBpm));
+
+    toggleBtn(dom.btnMetroDrone, c.drone.on);
+    setNum(dom.metroDroneLevel, Math.round(c.drone.level * 100));
+    dom.metroDroneVal.textContent = Math.round(c.drone.level * 100);
+
+    setNum(dom.metroSound, c.clickSound);
+    toggleBtn(dom.btnMetroFlash, m.flash);
+    toggleBtn(dom.btnMetroHaptics, m.haptics);
+  }
+
   function render() {
     const s = state;
     const isPatterns = s.view === "patterns";
+    const isMetro = s.view === "metronome";
     const inGame = s.mode === "game";
     const note = (inGame ? NOTES[s.gameOrder[s.gameIdx]] : NOTES[s.order[s.idx]]) || NOTES[0];
     const pseq = seq();
 
-    dom.cardsView.style.display = isPatterns ? "none" : "flex";
+    dom.cardsView.style.display = isPatterns || isMetro ? "none" : "flex";
     dom.patternsView.style.display = isPatterns ? "flex" : "none";
-    dom.tabCards.style.cssText = tabStyle(!isPatterns);
+    dom.metronomeView.style.display = isMetro ? "flex" : "none";
+    dom.tabCards.style.cssText = tabStyle(!isPatterns && !isMetro);
     dom.tabPatterns.style.cssText = tabStyle(isPatterns);
+    dom.tabMetronome.style.cssText = tabStyle(isMetro);
 
-    dom.heading.textContent = isPatterns ? "Scales and patterns"
+    dom.heading.textContent = isMetro ? "Metronome"
+      : isPatterns ? "Scales and patterns"
       : inGame ? "Listening round" : "Bagpipe note drill";
-    dom.counter.textContent = isPatterns
+    dom.counter.textContent = isMetro
+      ? Math.round(metroConfig().bpm) + " bpm · " + metroSig(metroConfig())
+      : isPatterns
       ? (pseq.length ? Math.min(s.pIdx + 1, pseq.length) + " / " + pseq.length : "—")
       : inGame ? (s.gameIdx + 1) + " / " + GAME_LENGTH + " · score " + s.score
       : (s.idx + 1) + " / " + s.order.length;
 
     if (isPatterns) renderPatterns();
+    if (isMetro && metro) renderMetro();
 
     const fingering = s.cardFace === "fingering";
     dom.tabFaceStaff.style.cssText = tabStyle(!fingering);
@@ -1796,6 +2477,7 @@
       stableName = null; stableCount = 0;
       s.refA = s.calHz;
       saveRef();
+      syncMetroRef();
       s.dialogStep = 3;
       s.checkIdx = 0;
       s.judged = null;
@@ -1923,9 +2605,189 @@
   dom.btnDialogSkip.addEventListener("click", dialogSkip);
   dom.btnDialogNext.addEventListener("click", dialogNext);
 
+  // ── metronome wiring ──
+
+  // Added by the markup revision that turns the ring into a start button and
+  // adds a plain-beat shortcut. Both are wired if they are there and skipped
+  // quietly if they are not, since this file does not own index.html.
+  dom.btnMetroRing = el("btnMetroRing");
+  dom.btnMetroPlainBeat = el("btnMetroPlainBeat");
+
+  if (!PM) {
+    // metronome.js failed to load. A hidden tab is better than a dead view.
+    dom.tabMetronome.style.display = "none";
+    dom.metronomeView.style.display = "none";
+  } else {
+    buildMetroExtras();
+
+    metro = PM.create({
+      getContext: () => audio(),
+      onBar: metroOnBar,
+      onTempoChange: metroOnTempo,
+      onStop: metroOnStop,
+      config: Object.assign({}, state.metro.config || {}, { refHz: state.refA })
+    });
+
+    // The engine validates whatever came out of storage, so its own copy is the
+    // one worth keeping. With nothing stored, land on a preset rather than on
+    // the engine's bare defaults.
+    if (state.metro.config) state.metro.config = metro.getConfig();
+    else applyMetroPreset(state.metro.presetId);
+    pushMetroVolume();
+
+    // iOS Safari has no vibrate at all, so the control is removed rather than
+    // left there doing nothing.
+    if (!HAS_VIBRATE) {
+      dom.metroHapticsGroup.style.display = "none";
+      state.metro.haptics = false;
+    }
+    saveMetro();
+
+    dom.tabMetronome.addEventListener("click", () => setView("metronome"));
+    dom.btnMetroPlay.addEventListener("click", toggleMetronome);
+    if (dom.btnMetroRing) dom.btnMetroRing.addEventListener("click", toggleMetronome);
+
+    dom.btnMetroTap.addEventListener("click", () => {
+      const bpm = metro.tapTempo();     // the engine has already applied it
+      if (bpm === null) return;
+      const p = metroPresetById(state.metro.presetId);
+      state.metro.speedLevel = p ? p.tempos.indexOf(bpm) : -1;
+      state.metro.config = metro.getConfig();
+      saveMetro();
+      render();
+    });
+
+    dom.btnMetroBpmDown.addEventListener("click", () => setMetroBpm(metroConfig().bpm - 1));
+    dom.btnMetroBpmUp.addEventListener("click", () => setMetroBpm(metroConfig().bpm + 1));
+    dom.metroBpmRange.addEventListener("input", (e) => setMetroBpm(Number(e.target.value)));
+    dom.metroBpmInput.addEventListener("focus", () => dom.metroBpmInput.select());
+    dom.metroBpmInput.addEventListener("blur", () => setMetroBpm(parseFloat(dom.metroBpmInput.value)));
+    dom.metroBpmInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") dom.metroBpmInput.blur();
+      else if (e.key === "Escape") { dom.metroBpmInput.value = Math.round(metroConfig().bpm); dom.metroBpmInput.blur(); }
+    });
+
+    [dom.metroPresets, dom.metroPresetsMore].forEach((box) => {
+      box.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-preset]");
+        if (btn) applyMetroPreset(btn.dataset.preset);
+      });
+    });
+    if (dom.metroSpeedChips) {
+      dom.metroSpeedChips.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-speed]");
+        if (btn) setMetroSpeed(Number(btn.dataset.speed));
+      });
+    }
+
+    // The count-in, the click, the volume and everything in the drawer below
+    // the accent editor are not part of what a tune-type chip claims, so they
+    // pass keepPreset and leave the chip alone. Only the settings a preset
+    // actually writes — signature, subdivision, accents, pointing, stretch —
+    // mark it edited.
+    dom.btnMetroCountIn.addEventListener("click",
+      () => setMetro({ countInBars: metroConfig().countInBars > 0 ? 0 : 1 }, true));
+    dom.btnMetroClick.addEventListener("click", () => {
+      state.metro.clickOn = !state.metro.clickOn;
+      pushMetroVolume();
+      saveMetro();
+      render();
+    });
+    dom.metroVolume.addEventListener("input", (e) => {
+      state.metro.volume = Math.min(1, Math.max(0, Number(e.target.value) / 100));
+      pushMetroVolume();
+      saveMetro();
+      render();
+    });
+
+    dom.btnMetroAdvanced.addEventListener("click", () => {
+      state.metro.advancedOpen = !state.metro.advancedOpen;
+      saveMetro();
+      render();
+    });
+
+    dom.metroTimeSig.addEventListener("change", (e) => metroTimeSigChange(e.target.value));
+    dom.metroSubdivision.addEventListener("change", (e) => setMetroSubdivision(Number(e.target.value)));
+    if (dom.btnMetroPlainBeat) {
+      dom.btnMetroPlainBeat.addEventListener("click", () => {
+        const k = metroConfig().subdivision;
+        if (k !== 1) { metroLastSub = k; setMetroSubdivision(1); return; }
+        const p = metroPresetById(state.metro.presetId);
+        setMetroSubdivision(metroLastSub || (p ? p.subdivision : 2));
+      });
+    }
+
+    dom.metroAccents.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-beat]");
+      if (!btn) return;
+      const i = Number(btn.dataset.beat);
+      const accents = metroConfig().accents.slice();
+      if (!(i >= 0 && i < accents.length)) return;
+      // strong → normal → soft → silent → strong
+      accents[i] = (accents[i] + 3) % 4;
+      setMetro({ accents: accents });
+    });
+
+    dom.metroPointing.addEventListener("input",
+      (e) => setMetro({ pointing: Number(e.target.value) / 100 }));
+    dom.metroPulse.addEventListener("input",
+      (e) => setMetro({ beatStretch: Number(e.target.value) / 100 }));
+
+    dom.btnMetroGap.addEventListener("click",
+      () => setMetro({ gap: { on: !metroConfig().gap.on } }, true));
+    dom.metroGapPlay.addEventListener("change",
+      (e) => setMetro({ gap: { playBars: Number(e.target.value) } }, true));
+    dom.metroGapMute.addEventListener("change",
+      (e) => setMetro({ gap: { muteBars: Number(e.target.value) } }, true));
+    dom.btnMetroGapHide.addEventListener("click",
+      () => setMetro({ gap: { hideVisual: !metroConfig().gap.hideVisual } }, true));
+
+    dom.btnMetroRamp.addEventListener("click",
+      () => setMetro({ ramp: { on: !metroConfig().ramp.on } }, true));
+    dom.metroRampBars.addEventListener("change",
+      (e) => setMetro({ ramp: { everyBars: Number(e.target.value) } }, true));
+    dom.metroRampStep.addEventListener("change",
+      (e) => setMetro({ ramp: { stepBpm: Number(e.target.value) } }, true));
+    dom.metroRampMax.addEventListener("change",
+      (e) => setMetro({ ramp: { maxBpm: Number(e.target.value) } }, true));
+
+    dom.btnMetroDrone.addEventListener("click",
+      () => setMetro({ drone: { on: !metroConfig().drone.on }, refHz: state.refA }, true));
+    dom.metroDroneLevel.addEventListener("input",
+      (e) => setMetro({ drone: { level: Number(e.target.value) / 100 } }, true));
+    dom.metroSound.addEventListener("change",
+      (e) => setMetro({ clickSound: e.target.value }, true));
+
+    dom.btnMetroFlash.addEventListener("click", () => {
+      state.metro.flash = !state.metro.flash;
+      if (!state.metro.flash) dom.metroStage.classList.remove("metro-flash");
+      saveMetro();
+      render();
+    });
+    dom.btnMetroHaptics.addEventListener("click", () => {
+      state.metro.haptics = !state.metro.haptics;
+      saveMetro();
+      render();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      // The browser drops a screen wake lock whenever the page is hidden, so a
+      // metronome still running when you come back has to ask for another one.
+      if (!document.hidden && metro.isRunning()) acquireMetroWake();
+    });
+  }
+
   window.addEventListener("keydown", (e) => {
-    if (e.target.matches("input, select, textarea")) return;
+    // A key event dispatched at the document rather than an element has no
+    // matches(), and an exception here would take the whole handler down with
+    // it — including the metronome's space bar.
+    const t = e.target;
+    if (t && typeof t.matches === "function" && t.matches("input, select, textarea")) return;
     if (state.dialogStep) return;
+    if (state.view === "metronome") {
+      if (e.key === " ") { e.preventDefault(); toggleMetronome(); }
+      return;
+    }
     if (state.view === "patterns") {
       if (e.key === " ") { e.preventDefault(); togglePattern(); }
       else if (e.key === "Enter") { e.preventDefault(); resetRun(); }

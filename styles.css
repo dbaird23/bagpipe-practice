@@ -6,6 +6,12 @@ body {
 a { color: #997373; }
 a:hover { color: #2a2120; }
 
+/* Keyboard focus, in the accent colour rather than the browser default. */
+:focus-visible {
+  outline: 2px solid #997373;
+  outline-offset: 2px;
+}
+
 .page {
   min-height: 100vh;
   box-sizing: border-box;
@@ -632,7 +638,8 @@ a:hover { color: #2a2120; }
   gap: 8px;
 }
 
-.pattern-pick {
+.pattern-pick,
+.metro-preset {
   height: 36px;
   padding: 0 16px;
   border-radius: 999px;
@@ -993,7 +1000,25 @@ a:hover { color: #2a2120; }
     max-width: 100%;
   }
 
+  /* A bar wrapping is not enough on its own: a group inside it is a flex item
+     with min-width auto, so a fixed-width slider sitting beside its label and
+     buttons keeps the group wider than the page and drags the bar out with it.
+     Letting the groups wrap too, and letting the sliders give way, is what
+     actually keeps the row inside the padding. */
   .bar .divider { display: none; }
+
+  /* Three top-level tabs no longer fit one phone line at full size, so they
+     tighten up; wrapping is the safety net if they still cannot. */
+  .tab-group {
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100%;
+  }
+
+  .tab {
+    padding: 0 13px;
+    letter-spacing: 0.1em;
+  }
 
   .heard-group { min-width: 0; }
 
@@ -1009,9 +1034,695 @@ a:hover { color: #2a2120; }
   .footnote { text-align: center; }
 }
 
+/* The flashcard controls used to run wider than the page. Every box from the
+   view down to the tempo group was shrink-to-fit, so the fixed-width slider set
+   a floor that nothing was ever asked to give way from: the control bar wants
+   about 974px, and below roughly 1040px of window it simply overflowed — 377px
+   of bar inside a 360px page at the narrow end. Giving the chain a definite
+   width is what makes the constraint real, and the slider is then the one part
+   that can lose width without losing meaning, so it is the part that gives.
+
+   The breakpoint is the bar's own natural width plus the page padding rather
+   than one of the layout breakpoints above, because that is the width at which
+   the problem actually starts. Scoped to the flashcards view: the patterns and
+   metronome views already lay out from a full-width card. */
+@media (max-width: 1040px) {
+  #cardsView,
+  .controls,
+  .controls .bar {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .controls .bar-group { min-width: 0; }
+
+  .controls .bar input[type="range"] {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+}
+
 /* On a phone the card takes the full width and swiping replaces the arrows. */
 @media (max-width: 600px) {
   .nav-arrow { display: none; }
   .only-narrow { display: inline; }
   .only-wide { display: none; }
+}
+
+/* Last squeeze so all three tabs stay on one line down to 360 px. */
+@media (max-width: 470px) {
+  .tab-group { gap: 2px; padding: 3px; }
+
+  .tab {
+    padding: 0 9px;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* ── Metronome ──
+   One column: the ring and the six things a beginner needs sit on a white
+   card, and everything else is folded away behind the disclosure below it. */
+
+.metro-view {
+  gap: 18px;
+  width: 100%;
+  max-width: 600px;
+}
+
+.metro-stage {
+  width: 100%;
+  box-sizing: border-box;
+  background: #ffffff;
+  border: 1px solid #dccfc8;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -30px rgba(42, 33, 32, 0.45);
+  padding: 26px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+  /* Fade back out slowly, but arrive instantly — see .metro-pip below. */
+  transition: background-color 220ms linear, border-color 220ms linear;
+}
+
+/* Optional downbeat flash, for practising where the pipes drown the click. */
+.metro-stage.metro-flash {
+  background: #f6ece7;
+  border-color: #997373;
+  transition: none;
+}
+
+/* ── The ring ── */
+
+.metro-ring-wrap {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* The dial is a button, so it needs the button chrome stripped off —
+   appearance included, or WebKit paints its own background behind the SVG. */
+.metro-ring-btn {
+  display: block;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 999px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.metro-ring {
+  width: 260px;
+  height: 260px;
+  display: block;
+  overflow: visible;
+}
+
+.metro-face { fill: #faf6f4; }
+
+.metro-track {
+  fill: none;
+  stroke: #ece3de;
+  stroke-width: 3;
+}
+
+/* One tick per subdivision, drawn by app.js into #metroTicks as short radial
+   <line class="metro-tick"> segments just inside the pip ring. They show a
+   beginner why a two-beat bar can be giving them eight clicks. */
+.metro-tick {
+  stroke: #ddd2cc;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Beat pips. app.js writes one <circle class="metro-pip …"> per beat into
+   #metroPips, sets the accent class, and adds .is-active to the beat sounding
+   now. Draw them at r ≈ 7 so they read from across a room.
+
+   The ring is animated from requestAnimationFrame against the audio clock, so
+   a transition on the way IN would put the light behind the click. Arrive on
+   the sample, fade out afterwards. */
+.metro-pip {
+  fill: #ffffff;
+  stroke: #cbbcb5;
+  stroke-width: 2;
+  transition: fill 140ms linear, stroke 140ms linear;
+}
+
+.metro-pip.is-strong { fill: #2a2120; stroke: #2a2120; }
+.metro-pip.is-normal { fill: #cbbcb5; stroke: #a99891; }
+.metro-pip.is-soft   { fill: #ffffff; stroke: #cbbcb5; }
+
+.metro-pip.is-silent {
+  fill: #ffffff;
+  stroke: #e3d9d4;
+  stroke-dasharray: 2.5 3;
+}
+
+/* The beat sounding now. It has to win on size as well as colour: against the
+   near-black downbeat pip a colour change alone is not enough to see. Kept
+   soft, so it reads as a glow behind the hand rather than a second ring
+   competing with it. */
+.metro-pip.is-active {
+  fill: #997373;
+  stroke: #997373;
+  stroke-width: 7;
+  stroke-opacity: 0.2;
+  stroke-dasharray: none;
+  transition: none;
+}
+
+/* Optional beat numbers outside the pips. */
+.metro-pip-label {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 11px;
+  fill: #b3a49d;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* app.js sets transform="rotate(deg 130 130)" every frame from rAF, so any
+   transition here is pure lag against the audio clock. */
+.metro-hand { transition: none; }
+
+/* An open ring rather than a disc, so the accent colour of the beat it is
+   sitting on still shows through. */
+.metro-hand-tip {
+  fill: none;
+  stroke: #997373;
+  stroke-width: 3;
+}
+
+/* The tempo readout stays in Jost with lining, fixed-width figures for the
+   same reason the rest of the app's numbers do: Cormorant's old-style figures
+   set 1 like an I and 0 like an o, and this number has to be read at a glance
+   from a music stand, mid-tune. Cormorant keeps the titles; the numerals are
+   for reading, not for looking at. */
+.metro-bpm {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-weight: 300;
+  font-size: 68px;
+  fill: #2a2120;
+  text-anchor: middle;
+}
+
+.metro-bpm-caption {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  fill: #a99891;
+  text-anchor: middle;
+}
+
+/* Which note value the tempo counts — piping sources disagree about tempo
+   numbers precisely because they count different things, so it is always on
+   screen. Keep the string under about 26 characters or it runs under the
+   hand's path. */
+.metro-beat-unit {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  fill: #a99891;
+  text-anchor: middle;
+}
+
+.metro-pos {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 12.5px;
+  fill: #6f605a;
+  text-anchor: middle;
+}
+
+/* ── Transport and tempo ── */
+
+.metro-transport {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.metro-play {
+  height: 54px;
+  padding: 0 38px;
+  font-size: 13px;
+}
+
+.metro-tap { margin-left: 2px; }
+
+.metro-tempo {
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  row-gap: 12px;
+  padding: 12px 18px;
+}
+
+.metro-step {
+  width: 34px;
+  height: 34px;
+  font-size: 18px;
+  line-height: 1;
+  flex: none;
+}
+
+.metro-range { accent-color: #997373; }
+.metro-range-tempo { width: 160px; }
+.metro-range-vol { width: 96px; }
+
+/* A slider that means something different either side of its middle gets a
+   detent mark, or the left end reads as the neutral one. The mark sits at 50%
+   of the track, so it only tells the truth while the range stays symmetric
+   about the even value — 15–85 around 50. Move either end and move this. */
+.metro-range-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.metro-range-wrap .metro-range { width: 150px; }
+
+.metro-range-centred::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 14px;
+  margin-left: -0.5px;
+  transform: translateY(-50%);
+  background: #c2b4ad;
+  pointer-events: none;
+}
+
+.metro-bpm-input {
+  font-size: 21px;
+  width: 42px;
+}
+
+/* ── Tune-type chips ── */
+
+.metro-presets {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.metro-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.metro-preset:hover { border-color: #997373; }
+
+.metro-preset.is-selected {
+  border-color: #2a2120;
+  background: #2a2120;
+  color: #ffffff;
+}
+
+/* Once a setting is changed by hand the chip says so rather than pretending
+   the preset is still intact. A dot, not a word: a word would widen the chip
+   and re-wrap the whole row the moment the tempo moved. */
+.metro-preset.is-modified::after {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  margin-left: 7px;
+  vertical-align: 2px;
+  background: #997373;
+}
+
+.metro-preset.is-selected.is-modified::after { background: #ffffff; }
+
+.metro-presets-help { text-align: center; max-width: 46ch; }
+
+/* The speed picker and the rate readout, sharing the tune-type row's stacked
+   centred layout. */
+.metro-speed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Bars a minute is the figure that lets a published piping tempo be compared
+   with what is playing, whatever note value the source happened to count, so
+   it is set to be read rather than glanced past. */
+.metro-rate {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #6f605a;
+  text-align: center;
+}
+
+/* Reserved for the tune types that need one — a slow air is not played in
+   strict time, and saying so matters more than the click does. */
+/* Two classes deep on purpose: .metro-help sets the help colour further down
+   the file, and at equal specificity the later rule would win. */
+.metro-help.metro-caveat { color: #997373; }
+
+/* Two lengths of the same caveat — spec section 6 requires the UI to say the
+   preset tempos are starting points, so the phone gets a short version rather
+   than none at all. */
+.metro-help-long { display: inline; }
+.metro-help-short { display: none; }
+
+/* Four controls will not sit on one line inside the card, so this one is a
+   rounded panel that wraps rather than a pill that overflows its own border. */
+.metro-basic-bar {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  row-gap: 14px;
+  border-radius: 22px;
+  padding: 14px 18px;
+}
+
+.metro-volume-group { gap: 10px; }
+
+.metro-val {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 13px;
+  color: #6f605a;
+  min-width: 32px;
+  text-align: right;
+  flex: none;
+}
+
+/* ── Advanced disclosure ── */
+
+.metro-advanced { width: 100%; }
+
+.metro-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 0 20px;
+  border: 1px solid #e3d9d4;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #6f605a;
+  font-family: 'Jost', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.metro-disclosure:hover { border-color: #997373; }
+
+.metro-disclosure-caret {
+  display: inline-block;
+  font-size: 10px;
+  color: #a99891;
+  transition: transform 140ms ease;
+}
+
+.metro-disclosure[aria-expanded="true"] .metro-disclosure-caret {
+  transform: rotate(90deg);
+}
+
+/* Hidden with an inline display:none in the markup — set style.display to ""
+   to show it and this rule takes over. */
+.metro-advanced-body {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 12px;
+  background: #ffffff;
+  border: 1px solid #e3d9d4;
+  border-radius: 12px;
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* One level of heading, so eleven settings read as six short subjects. */
+.metro-section-head {
+  font-family: 'Jost', sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #997373;
+}
+
+.metro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.metro-group + .metro-group {
+  border-top: 1px solid #f1e9e5;
+  padding-top: 20px;
+}
+
+.metro-group + .metro-section-head {
+  border-top: 1px solid #e3d9d4;
+  padding-top: 22px;
+}
+
+.metro-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.metro-control .metro-chips { justify-content: flex-start; }
+
+.metro-help {
+  font-size: 12px;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  color: #a99891;
+  text-wrap: pretty;
+  max-width: 54ch;
+}
+
+.metro-select { min-width: 96px; }
+
+.metro-num {
+  font-family: 'Jost', system-ui, sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 14px;
+  color: #2a2120;
+  background: #ffffff;
+  border: 1px solid #dccfc8;
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 58px;
+  box-sizing: border-box;
+}
+
+.metro-num:focus,
+.metro-select:focus {
+  outline: none;
+  border-color: #997373;
+}
+
+.metro-inline-label {
+  font-size: 12.5px;
+  color: #6f605a;
+  white-space: nowrap;
+}
+
+/* "Play 4 bars" stays together when the row wraps on a phone. */
+.metro-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.metro-range-end {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b3a49d;
+  white-space: nowrap;
+}
+
+/* These labels are phrases, not single words, so they must not break. */
+.metro-view .mini-btn { white-space: nowrap; }
+
+/* Small on/off buttons. app.js may use either the class or aria-pressed. */
+.mini-btn.is-on,
+.mini-btn[aria-pressed="true"] {
+  border-color: #2a2120;
+  background: #2a2120;
+  color: #ffffff;
+}
+
+/* ── Accent editor ── */
+
+.metro-accents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* app.js fills #metroAccents with one .metro-accent button per beat and puts
+   one of .is-strong / .is-normal / .is-soft / .is-silent on each. */
+.metro-accent {
+  width: 54px;
+  height: 48px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid #dccfc8;
+  background: #ffffff;
+  color: #2a2120;
+  font-family: 'Jost', sans-serif;
+  font-variant-numeric: lining-nums tabular-nums;
+  font-size: 15px;
+  line-height: 1.15;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.metro-accent:hover { border-color: #997373; }
+
+.metro-accent-num { font-size: 15px; }
+
+.metro-accent-word {
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.metro-accent.is-strong {
+  border-color: #2a2120;
+  background: #2a2120;
+  color: #ffffff;
+}
+
+.metro-accent.is-normal {
+  border-color: #cbbcb5;
+  background: #ded2cc;
+  color: #2a2120;
+}
+
+.metro-accent.is-soft {
+  border-color: #dccfc8;
+  background: #ffffff;
+  color: #8b7a73;
+}
+
+.metro-accent.is-silent {
+  border-style: dashed;
+  border-color: #e3d9d4;
+  background: #faf6f4;
+  color: #c2b4ad;
+}
+
+.metro-footnote { text-align: center; }
+
+/* ── Metronome, narrow screens ── */
+@media (max-width: 760px) {
+  .metro-view { gap: 14px; }
+
+  .metro-stage {
+    padding: 18px 14px 16px;
+    gap: 18px;
+    border-radius: 14px;
+  }
+
+  .metro-ring {
+    width: min(78vw, 300px);
+    height: min(78vw, 300px);
+  }
+
+  .metro-play { height: 50px; padding: 0 32px; }
+
+  /* One sideways-scrolling row, bled to the edges of the card so it is clear
+     there is more to the right. Three wrapped rows read as a wall of chips. */
+  .metro-presets .metro-chips {
+    align-self: stretch;
+    width: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    margin-inline: -14px;
+    padding: 2px 14px;
+  }
+
+  .metro-presets .metro-chips::-webkit-scrollbar { display: none; }
+  .metro-presets .metro-chips > * { flex: none; }
+
+  /* The caveat stays on a phone; it just gets shorter. */
+  .metro-help-long { display: none; }
+  .metro-help-short { display: inline; }
+
+  /* One-handed: the − value + group fills the top line, so the slider and Tap
+     tempo fall to a second line of their own. No `order` anywhere — the markup
+     is already in this sequence, so the tab order follows the eye. */
+  .metro-tempo {
+    row-gap: 12px;
+    padding: 12px 16px;
+  }
+
+  #metroBpmRange { flex: 1 1 140px; width: auto; }
+
+  .metro-step { width: 40px; height: 40px; }
+
+  .metro-basic-bar { gap: 12px; row-gap: 12px; padding: 14px 16px; }
+  .metro-range-vol { width: 110px; }
+
+  .metro-advanced-body { padding: 18px 16px; }
+
+  .metro-help { max-width: 100%; }
+
+  .metro-num { width: 54px; }
+}
+
+/* No fading pips and no flashing card for anyone who has asked the system to
+   keep motion down. The hand has no transition at any setting. */
+@media (prefers-reduced-motion: reduce) {
+  .metro-hand,
+  .metro-pip,
+  .metro-stage,
+  .metro-disclosure-caret {
+    transition: none;
+  }
+
+  .metro-stage.metro-flash {
+    background: #ffffff;
+    border-color: #dccfc8;
+  }
 }

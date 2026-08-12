@@ -1,9 +1,10 @@
 // Service worker: precache the app shell so the drill works offline, and keep
 // Google Fonts in a runtime cache so the type survives without a connection.
 //
-// Bump CACHE_VERSION whenever index.html / styles.css / app.js change; the new
-// worker precaches the fresh copies and deletes every older cache on activate.
-const CACHE_VERSION = "v16";
+// Bump CACHE_VERSION whenever index.html / styles.css / app.js / metronome.js
+// change; the new worker precaches the fresh copies and deletes every older
+// cache on activate.
+const CACHE_VERSION = "v17";
 const SHELL_CACHE = "bagpipe-shell-" + CACHE_VERSION;
 const FONT_CACHE = "bagpipe-fonts-" + CACHE_VERSION;
 
@@ -11,6 +12,7 @@ const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
+  "./metronome.js",
   "./app.js",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
