@@ -207,6 +207,20 @@
         <input class="bpm-input js-bpm-val" type="text" inputmode="numeric" value="60" style="font-size: 19px; width: 38px;" title="Click to type a tempo">
       </div>
       <button class="pill-btn js-sound">Click on</button>
+      <button id="btnLag" class="pill-btn">Bluetooth off</button>
+    </div>
+
+    <!-- Only there once the delay is switched on: it is a set-once number, not
+         something to be nudged between runs. -->
+    <div class="lag-bar" id="lagBar" style="display: none;">
+      <div class="bar" style="padding: 10px 18px; gap: 10px;">
+        <div class="bar-label">Headphone delay</div>
+        <button id="btnLagDown" class="circle-btn" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">&minus;</button>
+        <input id="lagInput" class="bpm-input" type="text" inputmode="numeric" value="170" style="font-size: 19px; width: 44px;" title="Click to type a delay in milliseconds">
+        <div class="bar-label" style="letter-spacing: 0.08em;">ms</div>
+        <button id="btnLagUp" class="circle-btn" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">+</button>
+      </div>
+      <div class="lag-hint" id="lagHint"></div>
     </div>
 
     <div class="bar listen-bar" style="padding: 12px 22px; gap: 22px;">

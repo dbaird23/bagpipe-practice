@@ -876,6 +876,25 @@ a:hover { color: #2a2120; }
   align-items: center;
 }
 
+/* The headphone delay: the control and, under it, whatever the last run says
+   the number should have been. */
+.lag-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.lag-hint {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: #a99891;
+  text-align: center;
+  max-width: 460px;
+  text-wrap: pretty;
+}
+
 .legend {
   display: flex;
   align-items: center;

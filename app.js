@@ -108,6 +108,20 @@
   // floor so fast tempos stay playable.
   const TIMING_TOLERANCE = 0.18;
   const TIMING_TOLERANCE_MIN_MS = 90;
+  // Bluetooth headphones hold the click for a fifth of a second or so before it
+  // reaches your ears, and you play to what you hear — so every note reads late
+  // by that much however well you played it. The delay is a property of the
+  // headphones, not of the app, and cannot be measured from inside the browser
+  // on every platform, so it is a number you set once and forget.
+  const LAG_KEY = "bagpipe-drill-output-lag";
+  const LAG_DEFAULT_MS = 170;   // typical for Bluetooth earbuds; AirPods sit near this
+  const LAG_MAX_MS = 400;
+  const LAG_STEP_MS = 10;
+  // Below this, whatever the browser reports is wired-output latency rather than
+  // a Bluetooth link, and compensating for it would be noise.
+  const LAG_AUTO_MIN_MS = 60;
+  // Average error worth offering to correct, once the delay is being taken out.
+  const LAG_NUDGE_MIN_MS = 20;
   // How far ahead of its own beat the next note can sound and still be counted
   // as that note arriving early rather than a stray note.
   const EARLY_CAPTURE = 0.5;
@@ -225,6 +239,27 @@
 
   function saveMetro() {
     try { localStorage.setItem(METRO_KEY, JSON.stringify(state.metro)); } catch (err) { /* storage unavailable */ }
+  }
+
+  // { on, ms, auto } — auto means "use whatever the browser reports, if it
+  // reports anything useful", which is how Chrome and Android get the right
+  // figure without anybody typing one. Touching the number turns auto off.
+  function loadLag() {
+    const base = { on: false, ms: LAG_DEFAULT_MS, auto: true };
+    try {
+      const raw = JSON.parse(localStorage.getItem(LAG_KEY) || "null");
+      if (!raw || typeof raw !== "object") return base;
+      const ms = Number(raw.ms);
+      return {
+        on: !!raw.on,
+        ms: Number.isFinite(ms) ? Math.min(LAG_MAX_MS, Math.max(0, Math.round(ms))) : base.ms,
+        auto: raw.auto === undefined ? base.auto : !!raw.auto
+      };
+    } catch (err) { return base; }
+  }
+
+  function saveLag() {
+    try { localStorage.setItem(LAG_KEY, JSON.stringify(state.lag)); } catch (err) { /* storage unavailable */ }
   }
 
   function loadRef() {
@@ -375,11 +410,13 @@
     lastRun: null,
     history: [],
     saved: [],
+    lag: null,
     metro: null
   };
   state.history = loadHistory();
   state.saved = loadSaved();
   state.refA = loadRef();
+  state.lag = loadLag();
   state.metro = loadMetro();
 
   let ac = null;
@@ -395,8 +432,9 @@
   let stableName = null;
   let stableCount = 0;
   let stableSince = 0;
-  let beatAt = 0;        // when the current note's beat landed
+  let beatAt = 0;        // when the current note's beat reached your ears
   let pendingEarly = null; // next note's pitch, heard before its beat
+  let pBeatTimers = [];  // beats sounded but not yet heard, over Bluetooth
 
   // While the mic is on, render() runs many times a second. Rewriting a
   // container's innerHTML replaces its child nodes, and a button destroyed
@@ -490,6 +528,12 @@
     btnPatternReset: el("btnPatternReset"),
     btnHear: el("btnHear"),
     btnLoop: el("btnLoop"),
+    btnLag: el("btnLag"),
+    lagBar: el("lagBar"),
+    lagInput: el("lagInput"),
+    lagHint: el("lagHint"),
+    btnLagUp: el("btnLagUp"),
+    btnLagDown: el("btnLagDown"),
     legend: el("legend"),
     historyPanel: el("historyPanel"),
     historyRows: el("historyRows"),
@@ -660,7 +704,9 @@
     if (!sq.length) { stopDemo(); return; }
     const total = sq.length * demoBeat;
 
-    const elapsed = ac.currentTime - demoStart;
+    // The highlight follows the ear, not the audio clock, so over headphones it
+    // does not run ahead of the note you are hearing.
+    const elapsed = ac.currentTime - demoStart - lagMs() / 1000;
     if (elapsed >= 0) {
       const idx = Math.min(sq.length - 1, Math.floor((elapsed % total) / demoBeat));
       if (idx !== state.demoIdx) { state.demoIdx = idx; render(); }
@@ -897,6 +943,47 @@
 
   function beatMs() { return 60000 / state.bpm; }
 
+  // What the browser says the whole output path costs. Chrome and Firefox
+  // report the real figure and it moves when you pair a set of headphones;
+  // Safari does not implement it at all, which is why there is a number to type.
+  function measuredLagMs() {
+    try {
+      const l = ac && typeof ac.outputLatency === "number" ? ac.outputLatency : NaN;
+      if (!Number.isFinite(l) || l <= 0) return 0;
+      return Math.min(LAG_MAX_MS, Math.round(l * 1000));
+    } catch (err) { return 0; }
+  }
+
+  // How long after the app plays a click you actually hear it.
+  function lagMs() {
+    if (!state.lag.on) return 0;
+    if (state.lag.auto) {
+      const m = measuredLagMs();
+      if (m >= LAG_AUTO_MIN_MS) return m;
+    }
+    return state.lag.ms;
+  }
+
+  function setLagMs(v) {
+    if (!Number.isFinite(v)) { render(); return; }
+    state.lag.ms = Math.min(LAG_MAX_MS, Math.max(0, Math.round(v)));
+    state.lag.auto = false;   // a hand-set figure is not overridden by the browser
+    saveLag();
+    render();
+  }
+
+  function toggleLag() {
+    state.lag.on = !state.lag.on;
+    // Turning it on for the first time seeds the number from the browser where
+    // there is one to read, so most people never have to touch it.
+    if (state.lag.on && state.lag.auto) {
+      const m = measuredLagMs();
+      if (m >= LAG_AUTO_MIN_MS) state.lag.ms = m;
+    }
+    saveLag();
+    render();
+  }
+
   function tolMs() {
     return Math.max(TIMING_TOLERANCE_MIN_MS, beatMs() * TIMING_TOLERANCE);
   }
@@ -910,6 +997,13 @@
 
   // withCountIn: true when the user presses Play, false when the clock is
   // merely being rebuilt mid-run (a tempo change) and must not interrupt.
+  //
+  // Two clocks, a headphone delay apart. The click goes out on the interval,
+  // because that is when the sound has to be handed to the audio hardware; but
+  // you play to what you *hear*, so everything that depends on the beat having
+  // landed — the note being judged, the highlight, the count-in numbers — runs
+  // lagMs() later. With the delay off the two are the same instant and this is
+  // the plain clock it has always been.
   function startPatternClock(withCountIn) {
     stopPatternClock();
     const step = () => {
@@ -924,7 +1018,6 @@
         finishRun(states);
         return;
       }
-      tick(false);
       state.pStates = states;
       state.pIdx = i + 1;
       beatAt = Date.now();
@@ -942,34 +1035,61 @@
     };
 
     const total = withCountIn ? COUNT_IN_BEATS : 0;
+    // The clock may be rebuilt part-way through a run, so the audio side counts
+    // notes from wherever the run has got to rather than from the beginning.
+    const startIdx = state.pIdx;
     let n = 0;
-    const onBeat = () => {
-      n++;
-      if (n <= total) {
-        // counting in: click each beat, accenting the first
-        tick(n === 1);
-        state.countIn = total - n + 1;
+
+    // The beat, as heard.
+    const landed = (k) => {
+      if (k <= total) {
+        state.countIn = total - k + 1;
         render();
         return;
       }
-      if (n === total + 1) {
+      if (k === total + 1) {
         // downbeat — note one starts here
         state.countIn = 0;
         beatAt = Date.now();
-        tick(true);
         render();
         return;
       }
       step();
     };
 
+    // The beat, as played out.
+    const onBeat = () => {
+      n++;
+      const k = n;
+      // Count-in beats click with the first accented, then the run's first note,
+      // then a plain click on each note after it. The beat that ends the run has
+      // no note left to mark, so it is silent.
+      const note = k <= total ? -1 : startIdx + (k - total - 1);
+      if (note < seq().length) tick(k <= total ? k === 1 : k === total + 1);
+
+      const lag = lagMs();
+      if (lag <= 0) { landed(k); return; }
+      const t = setTimeout(() => {
+        pBeatTimers = pBeatTimers.filter((x) => x !== t);
+        landed(k);
+      }, lag);
+      pBeatTimers.push(t);
+    };
+
     state.countIn = total;
     onBeat();
+    // The first beat is not heard for a delay yet, so show the count-in now
+    // rather than leaving the play prompt up until it lands.
+    render();
     pTimer = setInterval(onBeat, 60000 / state.bpm);
   }
 
   function stopPatternClock() {
     if (pTimer) { clearInterval(pTimer); pTimer = null; }
+    // beats already sounded but not yet heard: stopping has to silence what they
+    // would have done, or a run keeps scoring for a fifth of a second after Stop
+    pBeatTimers.forEach(clearTimeout);
+    pBeatTimers = [];
     state.countIn = 0;
   }
 
@@ -991,14 +1111,19 @@
   // can record the pass and carry straight on without breaking the pulse.
   function scoreRun(st) {
     const allHit = st.length > 0 && st.every((x) => x === "done");
-    let early = 0, late = 0, on = 0;
+    let early = 0, late = 0, on = 0, sum = 0, timed = 0;
     state.pOffset.forEach((o, i) => {
       if (o === null || st[i] === "missed") return;
       const t = timingOf(o);
       if (t === "early") early++;
       else if (t === "late") late++;
       else on++;
+      sum += o;
+      timed++;
     });
+    // The average is what a mis-set headphone delay looks like: a whole run
+    // sitting the same distance off the beat rather than scattered around it.
+    const meanMs = timed ? Math.round(sum / timed) : null;
     // a clean run also has to be in time
     const clean = allHit && early === 0 && late === 0;
     state.streak = clean ? state.streak + 1 : 0;
@@ -1006,6 +1131,10 @@
       clean,
       beat: true,   // kept so older free-tempo history still reads correctly
       on, early, late,
+      meanMs: meanMs,
+      // what the run was scored against, so the advice below stays right even
+      // if the delay is changed or switched off before the next run
+      lagMs: lagMs(),
       strays: state.pCross.filter(Boolean).length,
       missed: st.filter((x) => x === "missed").length
     };
@@ -1767,6 +1896,37 @@
     dom.btnLoop.style.cssText = roundBtn + (s.loop
       ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
       : "#e8ded9; background: #ffffff; color: #b3a49d;");
+
+    dom.btnLag.textContent = s.lag.on ? "Bluetooth on" : "Bluetooth off";
+    dom.btnLag.style.cssText = roundBtn + (s.lag.on
+      ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
+      : "#e8ded9; background: #ffffff; color: #b3a49d;");
+    dom.lagBar.style.display = s.lag.on ? "flex" : "none";
+    if (s.lag.on) {
+      if (document.activeElement !== dom.lagInput) dom.lagInput.value = lagMs();
+      dom.lagHint.textContent = lagHint();
+    }
+  }
+
+  // What the number means, and — once a run has been scored against it — what
+  // the playing says it should have been. A whole run sitting the same distance
+  // off the beat is the delay being wrong, not the piping.
+  function lagHint() {
+    const r = state.lastRun;
+    const mean = r && typeof r.meanMs === "number" ? r.meanMs : null;
+    if (mean !== null && Math.abs(mean) >= LAG_NUDGE_MIN_MS) {
+      const suggest = Math.min(LAG_MAX_MS, Math.max(0, (r.lagMs || 0) + mean));
+      // Once the advice has been taken there is nothing left to say.
+      if (suggest !== lagMs()) {
+        return "That run averaged " + Math.abs(mean) + " ms " + (mean > 0 ? "late" : "early") +
+          " — if it felt right under your fingers, set the delay to " + suggest + ".";
+      }
+    }
+    if (state.lag.auto && measuredLagMs() >= LAG_AUTO_MIN_MS) {
+      return "Measured from your headphones. Notes are timed against when the click reaches you, not when it is played.";
+    }
+    return "Notes are timed against when the click reaches you, not when it is played. " +
+      "If a whole run still reads late, raise this; if it reads early, lower it.";
   }
 
   // ── metronome ──
@@ -2598,6 +2758,16 @@
     render();
   });
   dom.btnClearHistory.addEventListener("click", () => { state.history = []; saveHistory(); render(); });
+
+  dom.btnLag.addEventListener("click", toggleLag);
+  dom.btnLagUp.addEventListener("click", () => setLagMs(lagMs() + LAG_STEP_MS));
+  dom.btnLagDown.addEventListener("click", () => setLagMs(lagMs() - LAG_STEP_MS));
+  dom.lagInput.addEventListener("focus", () => dom.lagInput.select());
+  dom.lagInput.addEventListener("blur", () => setLagMs(parseFloat(dom.lagInput.value)));
+  dom.lagInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") dom.lagInput.blur();
+    else if (e.key === "Escape") { dom.lagInput.value = lagMs(); dom.lagInput.blur(); }
+  });
 
   dom.btnExitGame.addEventListener("click", exitGame);
   dom.btnPlayAgain.addEventListener("click", startGame);

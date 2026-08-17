@@ -41,6 +41,13 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   sound on its own beat. Notes are marked green (on the beat), blue (early) or
   amber (late), with the offset in milliseconds
 - A red dot marks a stray note sounded on the way into a note
+- **Bluetooth** takes the headphone delay out of the scoring. Wireless
+  headphones hold the click for a fifth of a second or so before it reaches you,
+  and you play to what you hear — so without this every note reads late however
+  well you played it. With it on, the click still goes out on the beat but the
+  note is timed against when you *heard* it, and the highlight waits with you.
+  The delay is read from the browser where it reports one and typed in where it
+  does not; after a run the app says what the number should have been
 - **Hear it** plays the pattern back so you know what you are aiming for —
   gracenotes and all — as one continuous reed tone pitched to your own Low A.
   With **Loop** on it repeats seamlessly so you can play along; nothing is
