@@ -538,6 +538,9 @@
     historyPanel: el("historyPanel"),
     historyRows: el("historyRows"),
     btnClearHistory: el("btnClearHistory"),
+    freeMetroBar: el("freeMetroBar"),
+    btnFreeMetro: el("btnFreeMetro"),
+    freeMetroHint: el("freeMetroHint"),
     patternTempo: el("patternTempo"),
     resultOverlay: el("resultOverlay"),
     resultTempo: el("resultTempo"),
@@ -819,12 +822,72 @@
     } catch (err) { /* audio unavailable */ }
   }
 
+  // ── the click on its own ──
+  //
+  // Spot practice: the pulse with nothing attached to it. No count-in, no run,
+  // no highlight travelling along the staff — you decide what to work at and the
+  // page only keeps time. It borrows the metronome engine rather than the
+  // interval the runs use, because this is left going for minutes at a stretch
+  // and the engine lays its clicks on the audio clock, which a backgrounded tab
+  // cannot stutter.
+  let freeMetro = null;
+
+  function freeMetroEngine() {
+    if (freeMetro || !window.PipeMetronome) return freeMetro;
+    freeMetro = window.PipeMetronome.create({
+      getContext: () => audio(),
+      onStop: () => render(),
+      // Even clicks, one a beat, from the first one: this page has no bar to
+      // count, so accenting a downbeat here would be inventing one. The bar,
+      // the subdivisions and the rest of it are what the metronome tab is for.
+      config: {
+        bpm: state.bpm,
+        beatsPerBar: 4,
+        accents: [2, 2, 2, 2],
+        subdivision: 1,
+        countInBars: 0,
+        volume: state.metro.volume
+      }
+    });
+    return freeMetro;
+  }
+
+  function freeMetroOn() {
+    return !!freeMetro && freeMetro.isRunning();
+  }
+
+  function startFreeMetro() {
+    const m = freeMetroEngine();
+    if (!m || m.isRunning()) return;
+    // Two clocks clicking at once is nobody's idea of practice, so a judged run
+    // gives way to the plain beat.
+    clearTimeout(runTimer);
+    stopPatternClock();
+    state.pPlaying = false;
+    // The click follows the tempo on this page, and the volume set on the
+    // metronome tab — it is the same click, so it answers to the same slider.
+    m.setConfig({ bpm: state.bpm, volume: state.metro.volume });
+    // start() builds the AudioContext, which iOS only hands over inside a
+    // gesture; this is only ever reached from the button.
+    m.start();
+    render();
+  }
+
+  function stopFreeMetro() {
+    if (freeMetroOn()) freeMetro.stop();   // onStop renders
+  }
+
+  function toggleFreeMetro() {
+    if (freeMetroOn()) stopFreeMetro(); else startFreeMetro();
+  }
+
   // ── views ──
 
   function setView(view) {
     stopDemo();
     stopClock();
     stopPatternClock();
+    stopFreeMetro();
     // The metronome keeps its own clock and audio, so leaving the view has to
     // stop it as well; arriving here from any tab has already stopped the
     // flashcard and pattern clocks above.
@@ -1101,6 +1164,7 @@
       state.pPlaying = false;
       render();
     } else {
+      stopFreeMetro();
       state.pPlaying = true;
       resetRun();
       startPatternClock(true);
@@ -1584,6 +1648,9 @@
     // Rebuilding the clock mid-run keeps the run going; if the tempo changed
     // during a count-in, count in again at the new tempo.
     if (state.pPlaying) startPatternClock(state.countIn > 0);
+    // The plain beat retimes without breaking: the engine keeps the beat you
+    // are standing on and lays the rest out again at the new tempo.
+    if (freeMetroOn()) freeMetro.setConfig({ bpm: state.bpm });
     // Playback runs at a fixed beat, so a tempo change restarts it. Debounced
     // so dragging the slider doesn't stutter.
     if (state.demoing) {
@@ -1896,6 +1963,16 @@
     dom.btnLoop.style.cssText = roundBtn + (s.loop
       ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
       : "#e8ded9; background: #ffffff; color: #b3a49d;");
+
+    const freeOn = freeMetroOn();
+    dom.btnFreeMetro.textContent = freeOn ? "Stop metronome" : "Just metronome";
+    dom.btnFreeMetro.style.cssText = roundBtn + (freeOn
+      ? "#997373; background: #997373; color: #fff;"
+      : "#dccfc8; background: #ffffff; color: #2a2120;");
+    dom.freeMetroHint.textContent = freeOn
+      ? "Keeping time at " + s.bpm + " bpm. Nothing is being followed or scored — " +
+        "play whatever you are working at."
+      : "The beat on its own at " + s.bpm + " bpm, with no note to follow and nothing scored.";
 
     dom.btnLag.textContent = s.lag.on ? "Bluetooth on" : "Bluetooth off";
     dom.btnLag.style.cssText = roundBtn + (s.lag.on
@@ -2758,6 +2835,7 @@
     render();
   });
   dom.btnClearHistory.addEventListener("click", () => { state.history = []; saveHistory(); render(); });
+  dom.btnFreeMetro.addEventListener("click", toggleFreeMetro);
 
   dom.btnLag.addEventListener("click", toggleLag);
   dom.btnLagUp.addEventListener("click", () => setLagMs(lagMs() + LAG_STEP_MS));
@@ -2784,9 +2862,11 @@
   dom.btnMetroPlainBeat = el("btnMetroPlainBeat");
 
   if (!PM) {
-    // metronome.js failed to load. A hidden tab is better than a dead view.
+    // metronome.js failed to load. A hidden tab is better than a dead view, and
+    // the scales page's plain beat runs on the same engine, so it goes too.
     dom.tabMetronome.style.display = "none";
     dom.metronomeView.style.display = "none";
+    dom.freeMetroBar.style.display = "none";
   } else {
     buildMetroExtras();
 
