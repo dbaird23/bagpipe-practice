@@ -262,6 +262,44 @@
     try { localStorage.setItem(LAG_KEY, JSON.stringify(state.lag)); } catch (err) { /* storage unavailable */ }
   }
 
+  // The staff and the run colours are drawn into SVG, where a CSS custom
+  // property in a fill attribute is not resolved — so the two palettes are
+  // written out here as well as in styles.css.
+  const THEMES = {
+    light: {
+      ink: "#2a2120", good: "#7d9163", bad: "#a85a4e", early: "#6f8fa8",
+      late: "#c08a3e", dim: "#cabbb4", missed: "#ddd0ca", halo: "#f5efec",
+      staff: "#e0d5cf", clef: "#dbd0ca", acc: "#997373", labelPend: "#c6b7b0"
+    },
+    dark: {
+      ink: "#f0e7e2", good: "#9db184", bad: "#cd8375", early: "#8fb0c8",
+      late: "#d8a760", dim: "#5f4f48", missed: "#4a3d38", halo: "#332a27",
+      staff: "#40342e", clef: "#40342e", acc: "#c49a9a", labelPend: "#6a5952"
+    }
+  };
+  const T = () => THEMES[state.theme] || THEMES.light;
+
+  const THEME_KEY = "bpd-theme";
+
+  function loadTheme() {
+    try {
+      const v = localStorage.getItem(THEME_KEY);
+      return v === "dark" || v === "light" ? v : "light";
+    } catch (err) { return "light"; }
+  }
+
+  function saveTheme() {
+    try { localStorage.setItem(THEME_KEY, state.theme); } catch (err) { /* storage unavailable */ }
+  }
+
+  // The browser chrome around the page follows the app, so a dark app does not
+  // sit under a cream status bar.
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", state.theme);
+    const meta = document.getElementById("themeColor");
+    if (meta) meta.setAttribute("content", state.theme === "dark" ? "#1b1512" : "#f3ece8");
+  }
+
   function loadRef() {
     try {
       const v = parseFloat(localStorage.getItem(REF_KEY));
@@ -372,9 +410,14 @@
     flipped: false,
     playing: false,
     bpm: 60,
+    // Fixed rather than adjustable: the phone layout has no room for two more
+    // controls on the card, and these are the values the drill wants anyway —
+    // four beats to look at a card, and the answer on the beat after.
     beatsPerCard: 4,
-    sound: true,
     autoFlip: true,
+    // No longer a control either. The click is part of the drill, so it is
+    // always on.
+    sound: true,
     beat: 0,
     listening: false,
     refA: DEFAULT_REF_HZ,
@@ -393,6 +436,9 @@
     calHz: 0,
     checkIdx: 0,
     view: "cards",
+    theme: "light",
+    pickerOpen: false,
+    buildGraces: false,
     cardFace: "staff",
     patternId: "scale",
     custom: [],
@@ -413,6 +459,8 @@
     lag: null,
     metro: null
   };
+  state.theme = loadTheme();
+  applyTheme();
   state.history = loadHistory();
   state.saved = loadSaved();
   state.refA = loadRef();
@@ -480,10 +528,33 @@
   const dom = {
     heading: el("heading"),
     counter: el("counter"),
+    counterLabel: el("counterLabel"),
     tabCards: el("tabCards"),
     tabPatterns: el("tabPatterns"),
+    tabSettings: el("tabSettings"),
     cardsView: el("cardsView"),
     patternsView: el("patternsView"),
+    settingsView: el("settingsView"),
+    flashLayer: el("flashLayer"),
+    screens: el("screens"),
+    btnThemeLight: el("btnThemeLight"),
+    btnThemeDark: el("btnThemeDark"),
+    btnCalibrate: el("btnCalibrate"),
+    micStateLabel: el("micStateLabel"),
+    cardStatus: el("cardStatus"),
+    cardTapHint: el("cardTapHint"),
+    pickerOverlay: el("pickerOverlay"),
+    btnOpenPicker: el("btnOpenPicker"),
+    btnClosePicker: el("btnClosePicker"),
+    staffPanel: el("staffPanel"),
+    tabBuildNotes: el("tabBuildNotes"),
+    tabBuildGraces: el("tabBuildGraces"),
+    gapSettings: el("gapSettings"),
+    rampSettings: el("rampSettings"),
+    droneSettings: el("droneSettings"),
+    metroSigLabel: el("metroSigLabel"),
+    metroExtras: el("metroExtras"),
+    btnGoSettings: el("btnGoSettings"),
     card: el("card"),
     cardInner: el("cardInner"),
     cardFront: el("cardFront"),
@@ -500,12 +571,9 @@
     btnPlay: el("btnPlay"),
     btnNext: el("btnNext"),
     btnGame: el("btnGame"),
-    beatsSelect: el("beatsSelect"),
-    btnAutoFlip: el("btnAutoFlip"),
     beatDots: el("beatDots"),
     patternGroups: el("patternGroups"),
     patternName: el("patternName"),
-    patternMeta: el("patternMeta"),
     streakVal: el("streakVal"),
     customBuilder: el("customBuilder"),
     customNotes: el("customNotes"),
@@ -525,7 +593,6 @@
     statusLine: el("statusLine"),
     patternHint: el("patternHint"),
     btnPatternPlay: el("btnPatternPlay"),
-    btnPatternReset: el("btnPatternReset"),
     btnHear: el("btnHear"),
     btnLoop: el("btnLoop"),
     btnLag: el("btnLag"),
@@ -538,9 +605,7 @@
     historyPanel: el("historyPanel"),
     historyRows: el("historyRows"),
     btnClearHistory: el("btnClearHistory"),
-    freeMetroBar: el("freeMetroBar"),
     btnFreeMetro: el("btnFreeMetro"),
-    freeMetroHint: el("freeMetroHint"),
     patternTempo: el("patternTempo"),
     resultOverlay: el("resultOverlay"),
     resultTempo: el("resultTempo"),
@@ -574,7 +639,6 @@
     metroBpm: el("metroBpm"),
     metroBeatUnit: el("metroBeatUnit"),
     metroPos: el("metroPos"),
-    btnMetroPlay: el("btnMetroPlay"),
     btnMetroTap: el("btnMetroTap"),
     btnMetroBpmDown: el("btnMetroBpmDown"),
     btnMetroBpmUp: el("btnMetroBpmUp"),
@@ -586,8 +650,6 @@
     btnMetroClick: el("btnMetroClick"),
     metroVolume: el("metroVolume"),
     metroVolumeVal: el("metroVolumeVal"),
-    btnMetroAdvanced: el("btnMetroAdvanced"),
-    metroAdvancedBody: el("metroAdvancedBody"),
     metroTimeSig: el("metroTimeSig"),
     metroSubdivision: el("metroSubdivision"),
     metroAccents: el("metroAccents"),
@@ -615,7 +677,6 @@
     bpmVals: all(".js-bpm-val"),
     bpmUps: all(".js-bpm-up"),
     bpmDowns: all(".js-bpm-down"),
-    soundBtns: all(".js-sound"),
     listenBtns: all(".js-listen"),
     heardLabels: all(".js-heard"),
     centsMarkers: all(".js-cents-marker"),
@@ -888,15 +949,18 @@
     stopClock();
     stopPatternClock();
     stopFreeMetro();
-    // The metronome keeps its own clock and audio, so leaving the view has to
-    // stop it as well; arriving here from any tab has already stopped the
-    // flashcard and pattern clocks above.
-    stopMetronome();
+    // The metronome keeps its own clock and audio, so leaving it has to stop it
+    // as well — except on the way to Settings, which is where its own controls
+    // now live and where you would expect to adjust it as it runs.
+    if (view !== "metronome" && view !== "settings") stopMetronome();
     state.view = view;
     state.playing = false;
     state.beat = 0;
     state.pPlaying = false;
     state.mode = "practice";
+    state.pickerOpen = false;
+    // Each screen is its own page, so arriving at one starts at the top of it.
+    if (dom.screens) dom.screens.scrollTop = 0;
     if (view === "patterns") resetRun();
     else render();
   }
@@ -1163,8 +1227,14 @@
       stopDemo();
       state.pPlaying = false;
       render();
+    } else if (!state.listening) {
+      // Nothing here can be scored without a microphone, so this is where it
+      // gets asked for. The mic check runs first; the run starts after it.
+      stopDemo();
+      startListening();
     } else {
       stopFreeMetro();
+      stopDemo();
       state.pPlaying = true;
       resetRun();
       startPatternClock(true);
@@ -1659,7 +1729,24 @@
     }
   }
 
-  const roundBtn = "height: 44px; padding: 0 22px; border-radius: 999px; font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; cursor: pointer; border: 1px solid ";
+  // Everything visual now lives in styles.css so both palettes stay in one
+  // place; JavaScript only ever says which state a control is in.
+  function setOn(node, on, cls) {
+    if (node) node.classList.toggle(cls || "is-on", !!on);
+  }
+
+  function show(node, on) {
+    if (node) node.hidden = !on;
+  }
+
+  function chipGroup(box, value) {
+    if (!box) return;
+    box.querySelectorAll("[data-val]").forEach((b) => {
+      const on = b.dataset.val === String(value);
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
 
   const DIALOG_TITLES = ["", "Is the mic hearing you?", "Tune to your chanter", "Play up the scale"];
   const DIALOG_BODIES = [
@@ -1668,10 +1755,6 @@
     "Hold a steady Low A — the bottom hand covered, thumb down. Every other note is measured from this pitch, so it only has to be set once per chanter.",
     "Play each note in order, from Low G up to High A. Each one turns green when the app hears what it expects. If a note refuses to register, go back and re-tune the Low A."
   ];
-
-  function tabStyle(on) {
-    return on ? "background: #2a2120; color: #fff;" : "background: none; color: #a99891;";
-  }
 
   // Hold the charts in memory so flipping between cards never shows a blank.
   Object.keys(FINGERING_SRC).forEach((k) => { new Image().src = FINGERING_SRC[k]; });
@@ -1730,15 +1813,23 @@
 
     // pattern picker groups, with the user's saved patterns appended
     const groups = [];
+    const lengthOf = (p) => {
+      if (p.steps) return p.steps.length;
+      if (p.id === "custom") return null;
+      return seqOf(p.seq).length;
+    };
+    const metaOf = (n) => (n === null ? "note by note" : n + (n === 1 ? " note" : " notes"));
     PATTERNS.forEach((p) => {
       let g = groups.find((x) => x.label === p.group);
       if (!g) { g = { label: p.group, items: [] }; groups.push(g); }
-      g.items.push({ id: p.id, label: p.label });
+      g.items.push({ id: p.id, label: p.name || p.label, meta: metaOf(lengthOf(p)) });
     });
     if (s.saved.length) {
       groups.push({
         label: "Saved",
-        items: s.saved.map((v) => ({ id: SAVED_PREFIX + v.id, label: v.name }))
+        items: s.saved.map((v) => ({
+          id: SAVED_PREFIX + v.id, label: v.name, meta: metaOf(v.seq.length)
+        }))
       });
     }
     // built once; selection is applied below by restyling the existing buttons
@@ -1748,23 +1839,25 @@
       '<div class="pattern-group-row"><div class="pattern-group-label">' + esc(g.label) +
       '</div><div class="pattern-group-items">' +
       g.items.map((p) =>
-        '<button class="pattern-pick" data-pattern="' + esc(p.id) + '">' + esc(p.label) + "</button>"
+        '<button class="pattern-pick" type="button" data-pattern="' + esc(p.id) + '">' +
+        '<span class="pattern-pick-text"><span class="pattern-pick-label">' + esc(p.label) +
+        '</span><span class="pattern-pick-meta">' + esc(p.meta) + "</span></span></button>"
       ).join("") + "</div></div>"
     ).join(""));
     dom.patternGroups.querySelectorAll("[data-pattern]").forEach((b) => {
-      b.style.cssText = b.dataset.pattern === s.patternId
-        ? "border-color: #2a2120; background: #2a2120; color: #fff;" : "";
+      setOn(b, b.dataset.pattern === s.patternId);
     });
+    show(dom.pickerOverlay, s.pickerOpen);
 
     dom.patternName.textContent = pat.name;
-    dom.patternMeta.textContent = pseq.length
-      ? pseq.length + (pseq.length === 1 ? " note · " : " notes · ") +
-        s.bpm + " bpm"
-      : "empty";
     dom.streakVal.textContent = s.streak;
-    dom.streakVal.style.color = s.streak ? "#7d9163" : "#cabbb4";
+    setOn(dom.streakVal, s.streak, "is-good");
 
-    dom.customBuilder.style.display = pat.id === "custom" ? "flex" : "none";
+    show(dom.customBuilder, pat.id === "custom");
+    setOn(dom.tabBuildNotes, !s.buildGraces);
+    setOn(dom.tabBuildGraces, s.buildGraces);
+    show(dom.customNotes, !s.buildGraces);
+    show(dom.customGraces, s.buildGraces);
     setHtml(dom.customNotes, "customNotes", "built", () => NOTES.map((n, i) =>
       '<button class="custom-note-btn" data-add="' + i + '">' + n.name + "</button>"
     ).join(""));
@@ -1794,24 +1887,28 @@
     }
 
     const savedPat = currentSaved();
-    dom.savedBar.style.display = savedPat ? "flex" : "none";
+    show(dom.savedBar, !!savedPat);
     if (savedPat) {
       dom.savedName.textContent = savedPat.name;
       dom.savedHint.textContent = saveHint;
-      dom.btnSavedDelete.textContent = deleteArmed ? "Tap again to delete" : "Delete";
-      dom.btnSavedDelete.style.color = deleteArmed ? "#a85a4e" : "";
-      dom.btnSavedDelete.style.borderColor = deleteArmed ? "#e0bdb7" : "";
+      dom.btnSavedDelete.textContent = deleteArmed ? "Tap again" : "Delete";
+      setOn(dom.btnSavedDelete, deleteArmed, "is-armed");
     }
 
     // staff rows — gracenotes sit to the left of their note, so the more of
     // them a pattern carries, the more room each note needs
     const maxG = maxGraceLen();
     const hasGrace = maxG > 0;
-    const perRow = maxG > 1 ? 5 : maxG === 1 ? 8 : 9;
-    const gap = maxG > 1 ? 82 : 57;
-    const startX = maxG > 1 ? 108 : maxG === 1 ? 80 : 58;
+    // A phone-width staff can hold far fewer notes than the old wide one, so
+    // patterns wrap onto more, shorter rows.
+    const perRow = maxG > 1 ? 3 : maxG === 1 ? 4 : 5;
+    const gap = maxG > 1 ? 130 : maxG === 1 ? 104 : 92;
+    const startX = maxG > 1 ? 132 : maxG === 1 ? 104 : 72;
+    // The staff is only as wide as the notes on it, so a phone-width row is
+    // never mostly empty paper.
+    const staffW = startX + (perRow - 1) * gap + 40;
     const staffSig = [
-      s.patternId,
+      s.patternId, s.theme,
       // notes and their gracenotes, so edits in the builder redraw
       steps().map((st) => st.n + ":" + st.g.join("-")).join(","),
       s.pIdx, s.runDone, s.bpm, s.demoing, s.demoIdx,
@@ -1832,12 +1929,13 @@
         // on the beat, a hit note is coloured by its timing
         const off = s.pOffset[abs];
         const timing = (st === "done" || st === "dirty") && off !== null ? timingOf(off) : null;
-        const hitFill = timing === "early" ? "#6f8fa8"
-          : timing === "late" ? "#c08a3e" : "#7d9163";
-        const fill = st === "done" ? hitFill : st === "dirty" ? "#a85a4e"
-          : st === "missed" ? "#ddd0ca" : isNow ? "#2a2120" : "#cabbb4";
+        const t = T();
+        const hitFill = timing === "early" ? t.early
+          : timing === "late" ? t.late : t.good;
+        const fill = st === "done" ? hitFill : st === "dirty" ? t.bad
+          : st === "missed" ? t.missed : isNow ? t.ink : t.dim;
         notesSvg += '<circle cx="' + cx + '" cy="' + n.y + '" r="15" fill="' +
-          (isNow ? "#f5efec" : "transparent") + '"></circle>';
+          (isNow ? t.halo : "transparent") + '"></circle>';
         if (n.ledger) {
           notesSvg += '<line x1="' + (cx - 15) + '" y1="8" x2="' + (cx + 15) +
             '" y2="8" stroke="' + fill + '" stroke-width="1.1"></line>';
@@ -1851,40 +1949,42 @@
           // with a gracenote to the left of the note, the stray marker moves to
           // the right so the two never sit on top of each other
           notesSvg += '<circle cx="' + (cx + (hasGrace ? 14 : -19)) +
-            '" cy="6" r="3.4" fill="#a85a4e"></circle>';
+            '" cy="6" r="3.4" fill="' + t.bad + '"></circle>';
         }
-        // show how far off the beat a note landed, in ms
-        const offLabel = timing && timing !== "on"
-          ? " " + (off > 0 ? "+" : "−") + Math.round(Math.abs(off))
-          : "";
-        labelsHtml += '<div style="position: absolute; top: 0; left: ' + ((cx / 520) * 100).toFixed(2) +
-          '%; transform: translateX(-50%); font-size: 11px; letter-spacing: 0.04em; white-space: nowrap; color: ' +
-          (st === "done" ? hitFill : st === "dirty" ? "#a85a4e" : isNow ? "#997373" : "#c6b7b0") +
-          ';">' + n.name + offLabel + "</div>";
+        // The notes are there to be read off the staff, so nothing names them.
+        // The only thing written underneath is how far off the beat a note
+        // landed, in ms, and only once there is a figure to write.
+        if (timing && timing !== "on") {
+          const offLabel = (off > 0 ? "+" : "−") + Math.round(Math.abs(off));
+          labelsHtml += '<div class="staff-label" style="left: ' + ((cx / staffW) * 100).toFixed(2) +
+            '%; color: ' + (st === "dirty" ? t.bad : hitFill) + ';">' + offLabel + "</div>";
+        }
       });
       // beamed groups reach well above the top line, so those rows get extra
       // headroom rather than running into the row above
-      const vb = maxG > 1 ? "0 -22 520 126" : "0 0 520 104";
+      const vb = maxG > 1 ? "0 -22 " + staffW + " 126" : "0 0 " + staffW + " 104";
       rowsHtml += '<div class="staff-row"><svg viewBox="' + vb + '">' +
-        '<g stroke="#e0d5cf" stroke-width="1.1">' +
+        '<g stroke="' + T().staff + '" stroke-width="1.1">' +
         [20, 32, 44, 56, 68].map((y) =>
-          '<line x1="10" y1="' + y + '" x2="512" y2="' + y + '"></line>').join("") +
-        '</g><text x="16" y="66" font-family="\'Noto Music\', serif" font-size="42" fill="#dbd0ca">&#119070;</text>' +
+          '<line x1="10" y1="' + y + '" x2="' + (staffW - 8) + '" y2="' + y + '"></line>').join("") +
+        '</g><text x="16" y="66" font-family="\'Noto Music\', serif" font-size="42" fill="' +
+        T().clef + '">&#119070;</text>' +
         notesSvg + '</svg><div class="staff-labels">' + labelsHtml + "</div></div>";
     }
     return rowsHtml;
     };
     setHtml(dom.staffRows, "staff", staffSig, buildRows);
-    dom.staffRows.style.display = pseq.length ? "flex" : "none";
+    show(dom.staffPanel, pseq.length > 0);
 
     const nowName = pseq.length && !s.runDone ? (NOTES[pseq[s.pIdx]] || NOTES[0]).name : "";
     let statusLine;
-    if (!pseq.length) statusLine = "Tap notes above to build a pattern.";
+    if (s.micError) statusLine = "The microphone is blocked — allow it in your browser settings, then try again.";
+    else if (!pseq.length) statusLine = "Tap notes above to build a pattern.";
     else if (s.demoing) statusLine = s.loop
       ? "Looping at " + s.bpm + " bpm, tuned to your Low A — play along. Nothing is scored while it plays."
       : "Playing it back once at " + s.bpm + " bpm, tuned to your Low A. Turn Loop on to practise along.";
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
-    else if (!s.listening) statusLine = "Turn the mic on and the notes will fill in as you play them.";
+    else if (!s.listening) statusLine = "Tap Test mode to be scored — it turns the mic on first. Listen plays the pattern back.";
     else if (s.runDone) {
       const r = s.lastRun || {};
       if (r.clean) {
@@ -1905,7 +2005,7 @@
       }
     }
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
-    else if (!s.pPlaying) statusLine = "Press play — one note a beat, and the note has to sound on its beat to count.";
+    else if (!s.pPlaying) statusLine = "Tap Test mode — one note a beat, and the note has to sound on its beat to count.";
     else if (hasGrace && (steps()[s.pIdx] || {}).move) {
       statusLine = "Play the " + steps()[s.pIdx].move + " on " + nowName + ".";
     }
@@ -1918,7 +2018,7 @@
     dom.statusLine.textContent = statusLine;
 
     // Be straight about what the mic can and cannot judge here.
-    dom.patternHint.style.display = hasGrace ? "" : "none";
+    show(dom.patternHint, hasGrace);
     if (hasGrace) {
       dom.patternHint.textContent = maxG > 1
         ? "The movement is there to read and play — gracenotes are far too short for the mic " +
@@ -1928,57 +2028,44 @@
           "scored — but playing one will not count against you.";
     }
 
-    dom.btnPatternPlay.textContent = s.pPlaying ? "Stop" : "Play";
-    dom.btnPatternPlay.style.cssText = roundBtn +
-      (s.pPlaying ? "#997373; background: #997373; color: #fff;" : "#2a2120; background: #2a2120; color: #fff;");
+    dom.btnPatternPlay.textContent = s.pPlaying ? "Stop" : "Test mode";
+    setOn(dom.btnPatternPlay, s.pPlaying);
 
-    const legend = [["#7d9163", "On the beat"], ["#6f8fa8", "Early"], ["#c08a3e", "Late"],
-      ["#a85a4e", "Stray note on the way in"], ["#ded2cc", "Missed the beat"]];
-    setHtml(dom.legend, "legend", "built", () => legend.map(([c, label]) =>
-      '<div class="legend-item"><div class="legend-dot" style="background: ' + c + ';"></div>' +
+    const legend = [["good", "On the beat"], ["early", "Early"], ["late", "Late"],
+      ["bad", "Stray note on the way in"], ["missed", "Missed the beat"]];
+    setHtml(dom.legend, "legend", s.theme, () => legend.map(([c, label]) =>
+      '<div class="legend-item"><div class="legend-dot" style="background: var(--' + c + ');"></div>' +
       label + "</div>").join(""));
 
-    dom.historyPanel.style.display = s.history.length ? "flex" : "none";
-    setHtml(dom.historyRows, "history", JSON.stringify(s.history), () => s.history.map((h) => {
+    show(dom.historyPanel, s.history.length > 0);
+    setHtml(dom.historyRows, "history", JSON.stringify(s.history) + s.theme, () => s.history.map((h) => {
       const when = new Date(h.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       const onBeat = h.beat ? h.on + " / " + h.total + " on beat" : "free tempo";
       return '<div class="history-row">' +
-        '<div class="history-dot" style="background: ' + (h.clean ? "#7d9163" : "#e0d5cf") + ';"></div>' +
+        '<div class="history-dot" style="background: var(--' + (h.clean ? "good" : "bd2") + ');"></div>' +
         '<div class="history-name">' + esc(h.pattern) + "</div>" +
         '<div class="history-when">' + h.bpm + " bpm · " + when + "</div>" +
-        '<div class="history-stat history-correct">' + h.correct + " / " + h.total + " correct</div>" +
-        '<div class="history-stat history-onbeat" style="color: ' +
-          (h.beat ? "#6f605a" : "#c2b4ad") + ';">' + onBeat + "</div>" +
+        '<div class="history-stat history-correct">' + h.correct + " / " + h.total +
+        " correct · " + onBeat + "</div>" +
         "</div>";
     }).join(""));
 
-    dom.btnHear.textContent = s.demoing ? "Stop" : "Hear it";
+    dom.btnHear.textContent = s.demoing ? "Stop" : "Listen";
     dom.btnHear.disabled = !pseq.length;
-    dom.btnHear.style.cssText = roundBtn + (s.demoing
-      ? "#997373; background: #997373; color: #fff;"
-      : "#dccfc8; background: #ffffff; color: #2a2120;") +
-      (pseq.length ? "" : " opacity: 0.45; cursor: default;");
+    setOn(dom.btnHear, s.demoing);
 
     dom.btnLoop.textContent = s.loop ? "Loop on" : "Loop off";
-    dom.btnLoop.style.cssText = roundBtn + (s.loop
-      ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
-      : "#e8ded9; background: #ffffff; color: #b3a49d;");
+    setOn(dom.btnLoop, s.loop, "is-quiet");
+    setOn(dom.btnLoop, !s.loop, "is-off");
 
     const freeOn = freeMetroOn();
     dom.btnFreeMetro.textContent = freeOn ? "Stop metronome" : "Just metronome";
-    dom.btnFreeMetro.style.cssText = roundBtn + (freeOn
-      ? "#997373; background: #997373; color: #fff;"
-      : "#dccfc8; background: #ffffff; color: #2a2120;");
-    dom.freeMetroHint.textContent = freeOn
-      ? "Keeping time at " + s.bpm + " bpm. Nothing is being followed or scored — " +
-        "play whatever you are working at."
-      : "The beat on its own at " + s.bpm + " bpm, with no note to follow and nothing scored.";
+    setOn(dom.btnFreeMetro, freeOn);
 
     dom.btnLag.textContent = s.lag.on ? "Bluetooth on" : "Bluetooth off";
-    dom.btnLag.style.cssText = roundBtn + (s.lag.on
-      ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
-      : "#e8ded9; background: #ffffff; color: #b3a49d;");
-    dom.lagBar.style.display = s.lag.on ? "flex" : "none";
+    setOn(dom.btnLag, s.lag.on, "is-quiet");
+    setOn(dom.btnLag, !s.lag.on, "is-off");
+    show(dom.lagBar, s.lag.on);
     if (s.lag.on) {
       if (document.activeElement !== dom.lagInput) dom.lagInput.value = lagMs();
       dom.lagHint.textContent = lagHint();
@@ -2100,7 +2187,7 @@
     dom.metroCaveat = el("metroCaveat");
     if (!dom.metroSpeedChips) return;
     dom.metroSpeedChips.innerHTML = METRO_SPEEDS.map((label, i) =>
-      '<button class="mini-btn" type="button" data-speed="' + i + '" aria-pressed="false">' +
+      '<button class="chip chip-grow" type="button" data-speed="' + i + '" aria-pressed="false">' +
       label + "</button>").join("");
   }
 
@@ -2169,6 +2256,15 @@
     if (!metro) return;
     metro.setConfig({ volume: state.metro.clickOn ? state.metro.volume : 0 });
     state.metro.config = metro.getConfig();
+  }
+
+  // strong → normal → soft → silent → strong, from the ring or from Settings.
+  function cycleAccent(i) {
+    if (!metro) return;
+    const accents = metroConfig().accents.slice();
+    if (!(i >= 0 && i < accents.length)) return;
+    accents[i] = (accents[i] + 3) % 4;
+    setMetro({ accents: accents });
   }
 
   function setMetroSubdivision(k) {
@@ -2248,10 +2344,10 @@
     // Through a gap the point is to keep time unaided, so neither the flash nor
     // the buzz gives the downbeat away.
     if (info.inGap) return;
-    if (state.metro.flash && dom.metroStage) {
-      dom.metroStage.classList.add("metro-flash");
+    if (state.metro.flash && dom.flashLayer) {
+      dom.flashLayer.classList.add("is-on");
       clearTimeout(metroFlashTimer);
-      metroFlashTimer = setTimeout(() => dom.metroStage.classList.remove("metro-flash"), 110);
+      metroFlashTimer = setTimeout(() => dom.flashLayer.classList.remove("is-on"), 110);
     }
     if (state.metro.haptics && HAS_VIBRATE) {
       try { navigator.vibrate(35); } catch (err) { /* refused while the page is backgrounded */ }
@@ -2272,8 +2368,11 @@
     if (metroRaf) { cancelAnimationFrame(metroRaf); metroRaf = null; }
     clearTimeout(metroFlashTimer);
     releaseMetroWake();
-    if (dom.metroStage) dom.metroStage.classList.remove("metro-flash");
-    if (dom.metroRingWrap) dom.metroRingWrap.style.visibility = "";
+    if (dom.flashLayer) dom.flashLayer.classList.remove("is-on");
+    if (dom.metroRingWrap) {
+      dom.metroRingWrap.style.visibility = "";
+      dom.metroRingWrap.classList.remove("is-running");
+    }
     metroRingHidden = false;
     render();
   }
@@ -2332,8 +2431,9 @@
       const y = 130 - 112 * Math.cos(a);
       const lx = 130 + 134 * Math.sin(a);
       const ly = 130 - 134 * Math.cos(a);
-      out += '<circle class="metro-pip ' + ACCENT_CLASS[accents[i]] + '" cx="' + x.toFixed(2) +
-        '" cy="' + y.toFixed(2) + '" r="7"></circle>' +
+      const r = [7, 5.5, 8, 11][accents[i]];
+      out += '<circle class="metro-pip ' + ACCENT_CLASS[accents[i]] + '" data-beat="' + i +
+        '" cx="' + x.toFixed(2) + '" cy="' + y.toFixed(2) + '" r="' + r + '"></circle>' +
         '<text class="metro-pip-label" x="' + lx.toFixed(2) + '" y="' + ly.toFixed(2) + '">' +
         (i + 1) + "</text>";
     }
@@ -2342,7 +2442,7 @@
 
   function buildPresetChips(list) {
     return list.map((p) =>
-      '<button class="metro-preset" type="button" data-preset="' + esc(p.id) + '">' +
+      '<button class="chip metro-preset" type="button" data-preset="' + esc(p.id) + '">' +
       esc(p.label) + "</button>").join("");
   }
 
@@ -2404,6 +2504,7 @@
     const n = c.beatsPerBar;
     const unit = metroUnit(c);
 
+    const sigOf = metroSig(c);
     const pipSig = n + ":" + c.accents.join(",");
     setHtml(dom.metroPips, "metroPips", pipSig, () => buildPips(n, c.accents));
     if (htmlCache.metroPipsBuilt !== pipSig) {
@@ -2426,10 +2527,11 @@
       metroActivePip = -1;
     }
 
-    dom.btnMetroPlay.textContent = running ? "Stop" : "Start";
-    dom.btnMetroPlay.style.cssText = running
-      ? "border-color: #997373; background: #997373; color: #fff;" : "";
     if (dom.btnMetroRing) dom.btnMetroRing.setAttribute("aria-pressed", running ? "true" : "false");
+    setOn(dom.metroRingWrap, running, "is-running");
+    if (dom.metroSigLabel) {
+      dom.metroSigLabel.textContent = sigOf + " · " + n + (n === 1 ? " beat a bar" : " beats a bar");
+    }
 
     setNum(dom.metroBpmRange, c.bpm);
     setNum(dom.metroBpmInput, Math.round(c.bpm));
@@ -2467,7 +2569,7 @@
       // stays up after a control has been moved.
       const caveat = preset && preset.caveat ? preset.caveat : "";
       dom.metroCaveat.textContent = caveat;
-      dom.metroCaveat.style.display = caveat ? "" : "none";
+      show(dom.metroCaveat, !!caveat);
     }
 
     toggleBtn(dom.btnMetroCountIn, c.countInBars > 0);
@@ -2476,15 +2578,8 @@
     setNum(dom.metroVolume, Math.round(m.volume * 100));
     dom.metroVolumeVal.textContent = Math.round(m.volume * 100);
 
-    dom.metroAdvancedBody.style.display = m.advancedOpen ? "" : "none";
-    dom.btnMetroAdvanced.setAttribute("aria-expanded", m.advancedOpen ? "true" : "false");
-
-    const sig = metroSig(c);
-    if (document.activeElement !== dom.metroTimeSig &&
-        dom.metroTimeSig.querySelector('option[value="' + sig + '"]')) {
-      dom.metroTimeSig.value = sig;
-    }
-    setNum(dom.metroSubdivision, String(c.subdivision));
+    chipGroup(dom.metroTimeSig, sigOf);
+    chipGroup(dom.metroSubdivision, c.subdivision);
 
     const accentSig = n + ":" + c.accents.join(",");
     setHtml(dom.metroAccents, "metroAccents", accentSig, () => buildAccents(c.accents));
@@ -2503,22 +2598,51 @@
     dom.metroPulseVal.textContent = Math.round(c.beatStretch * 100);
 
     toggleBtn(dom.btnMetroGap, c.gap.on);
+    show(dom.gapSettings, c.gap.on);
     setNum(dom.metroGapPlay, c.gap.playBars);
     setNum(dom.metroGapMute, c.gap.muteBars);
     toggleBtn(dom.btnMetroGapHide, c.gap.hideVisual);
 
     toggleBtn(dom.btnMetroRamp, c.ramp.on);
+    show(dom.rampSettings, c.ramp.on);
     setNum(dom.metroRampBars, c.ramp.everyBars);
     setNum(dom.metroRampStep, c.ramp.stepBpm);
     setNum(dom.metroRampMax, Math.round(c.ramp.maxBpm));
 
     toggleBtn(dom.btnMetroDrone, c.drone.on);
+    show(dom.droneSettings, c.drone.on);
     setNum(dom.metroDroneLevel, Math.round(c.drone.level * 100));
     dom.metroDroneVal.textContent = Math.round(c.drone.level * 100);
 
-    setNum(dom.metroSound, c.clickSound);
+    chipGroup(dom.metroSound, c.clickSound);
     toggleBtn(dom.btnMetroFlash, m.flash);
     toggleBtn(dom.btnMetroHaptics, m.haptics);
+
+    // The metronome page keeps only the tempo and the tune type; everything
+    // else that is switched on is summarised there and edited in Settings.
+    if (dom.metroExtras) {
+      const extras = [];
+      if (c.subdivision > 1) extras.push(c.subdivision + " clicks a beat");
+      const point = Math.round(pointScalar(c.pointing) * 100);
+      if (c.subdivision > 1 && point !== 50) {
+        extras.push((point > 50 ? "pointed " : "snap ") + point);
+      }
+      if (c.beatStretch > 0) extras.push("beat stretch " + Math.round(c.beatStretch * 100));
+      if (c.countInBars > 0) extras.push("count-in");
+      if (!m.clickOn) extras.push("click off");
+      if (c.clickSound !== "click") extras.push(c.clickSound + " click");
+      if (c.gap.on) extras.push("silent bars " + c.gap.playBars + "+" + c.gap.muteBars);
+      if (c.ramp.on) {
+        extras.push("ramp +" + c.ramp.stepBpm + " every " + c.ramp.everyBars +
+          " bars to " + Math.round(c.ramp.maxBpm));
+      }
+      if (c.drone.on) extras.push("drone");
+      if (m.flash) extras.push("flash");
+      if (m.haptics) extras.push("buzz");
+      dom.metroExtras.textContent = extras.length
+        ? extras.join(" · ")
+        : "Nothing — a plain click, one a beat.";
+    }
   }
 
   function render() {
@@ -2529,29 +2653,40 @@
     const note = (inGame ? NOTES[s.gameOrder[s.gameIdx]] : NOTES[s.order[s.idx]]) || NOTES[0];
     const pseq = seq();
 
-    dom.cardsView.style.display = isPatterns || isMetro ? "none" : "flex";
-    dom.patternsView.style.display = isPatterns ? "flex" : "none";
-    dom.metronomeView.style.display = isMetro ? "flex" : "none";
-    dom.tabCards.style.cssText = tabStyle(!isPatterns && !isMetro);
-    dom.tabPatterns.style.cssText = tabStyle(isPatterns);
-    dom.tabMetronome.style.cssText = tabStyle(isMetro);
+    const isSettings = s.view === "settings";
+    const isCards = !isPatterns && !isMetro && !isSettings;
 
-    dom.heading.textContent = isMetro ? "Metronome"
-      : isPatterns ? "Scales and patterns"
-      : inGame ? "Listening round" : "Bagpipe note drill";
-    dom.counter.textContent = isMetro
-      ? Math.round(metroConfig().bpm) + " bpm · " + metroSig(metroConfig())
-      : isPatterns
-      ? (pseq.length ? Math.min(s.pIdx + 1, pseq.length) + " / " + pseq.length : "—")
-      : inGame ? (s.gameIdx + 1) + " / " + GAME_LENGTH + " · score " + s.score
+    show(dom.cardsView, isCards);
+    show(dom.patternsView, isPatterns);
+    show(dom.metronomeView, isMetro);
+    show(dom.settingsView, isSettings);
+    setOn(dom.tabCards, isCards);
+    setOn(dom.tabPatterns, isPatterns);
+    setOn(dom.tabMetronome, isMetro);
+    setOn(dom.tabSettings, isSettings);
+
+    dom.heading.textContent = inGame ? "Listening round" : "Flashcards";
+    dom.counter.textContent = inGame
+      ? s.score + " / " + GAME_LENGTH
       : (s.idx + 1) + " / " + s.order.length;
+    setOn(dom.counter, true);
+    if (dom.counterLabel) dom.counterLabel.textContent = inGame ? "score" : "this session";
+
+    setOn(dom.btnThemeLight, s.theme !== "dark");
+    setOn(dom.btnThemeDark, s.theme === "dark");
+    if (dom.micStateLabel) {
+      dom.micStateLabel.textContent = s.micError
+        ? "Blocked — allow it in your browser settings"
+        : s.listening ? "On" + (s.heard ? " — hearing " + s.heard : "") : "Off";
+    }
 
     if (isPatterns) renderPatterns();
-    if (isMetro && metro) renderMetro();
+    // Settings holds the metronome's own controls, so it renders them too.
+    if ((isMetro || isSettings) && metro) renderMetro();
 
     const fingering = s.cardFace === "fingering";
-    dom.tabFaceStaff.style.cssText = tabStyle(!fingering);
-    dom.tabFaceFinger.style.cssText = tabStyle(fingering);
+    setOn(dom.tabFaceStaff, !fingering);
+    setOn(dom.tabFaceFinger, fingering);
     dom.staffSvg.style.display = fingering ? "none" : "";
     dom.chanterImg.style.display = fingering ? "" : "none";
     if (fingering) {
@@ -2562,7 +2697,7 @@
 
     dom.ledgerLine.style.display = note.ledger ? "" : "none";
     dom.noteHead.setAttribute("cy", note.y);
-    dom.noteHead.setAttribute("transform", "rotate(-22 118 " + note.y + ")");
+    dom.noteHead.setAttribute("transform", "rotate(-22 170 " + note.y + ")");
     dom.noteStem.setAttribute("y", note.y);
     dom.noteName.textContent = note.name;
     dom.noteHint.textContent = note.hint;
@@ -2571,62 +2706,57 @@
     // While a modal is up, the card must not intercept clicks meant for the
     // modal's buttons (Safari routes them to the 3D flip layer otherwise).
     dom.card.style.pointerEvents = (s.dialogStep > 0 || s.mode === "result") ? "none" : "";
-    dom.cardFront.style.borderColor =
-      s.cardResult === "right" ? "#8a9a7b" : s.cardResult === "wrong" ? "#c98d83" : "#dccfc8";
-    dom.cardFront.style.background =
-      s.cardResult === "right" ? "#edf3e6" : s.cardResult === "wrong" ? "#fbeeeb" : "#ffffff";
+    setOn(dom.cardFront, s.cardResult === "right", "is-right");
+    setOn(dom.cardFront, s.cardResult === "wrong", "is-wrong");
+    if (dom.cardTapHint) dom.cardTapHint.textContent = s.flipped ? "" : "tap to reveal";
+
+    // The card carries the same running commentary the drill page does, so the
+    // instruction is never off the bottom of a phone screen.
+    if (dom.cardStatus) {
+      dom.cardStatus.textContent = s.micError
+        ? "The microphone is blocked — allow it in your browser settings, then try again."
+        : s.cardResult === "right" ? "Yes — " + note.name + "."
+        : s.cardResult === "wrong" ? "Not that one — keep trying."
+        : s.flipped ? "It's " + note.name + " · " + note.hint + "."
+        : s.listening
+          ? (fingering ? "Play the note this fingering makes." : "Play the note you see.")
+          : (fingering ? "Which note is this fingering?" : "What note is this?");
+    }
 
     dom.btnPlay.textContent = s.playing ? "Pause" : "Play";
-    dom.btnPlay.style.cssText = roundBtn + (s.playing
-      ? "#997373; background: #997373; color: #fff;"
-      : "#2a2120; background: #2a2120; color: #fff;");
+    setOn(dom.btnPlay, s.playing);
 
     dom.btnGame.textContent = inGame ? "End round" : "Listening round";
-    dom.btnGame.style.cssText = roundBtn + (inGame
-      ? "#997373; background: #ffffff; color: #997373;"
-      : "#dccfc8; background: #ffffff; color: #2a2120;");
-
-    dom.soundBtns.forEach((b) => {
-      b.textContent = s.sound ? "Click on" : "Click off";
-      b.style.cssText = roundBtn + (s.sound
-        ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
-        : "#e8ded9; background: #ffffff; color: #b3a49d;");
-    });
-
-    dom.btnAutoFlip.textContent = s.autoFlip ? "Auto-flip on" : "Auto-flip off";
-    dom.btnAutoFlip.style.cssText = roundBtn + (s.autoFlip
-      ? "#dccfc8; background: #f7f1ee; color: #2a2120;"
-      : "#e8ded9; background: #ffffff; color: #b3a49d;");
+    setOn(dom.btnGame, inGame);
 
     dom.bpmVals.forEach((v) => { if (document.activeElement !== v) v.value = s.bpm; });
     dom.bpmSliders.forEach((sl) => { if (document.activeElement !== sl) sl.value = s.bpm; });
-    if (document.activeElement !== dom.beatsSelect) dom.beatsSelect.value = String(s.beatsPerCard);
 
     const cycle = inGame ? s.beatsPerCard : s.beatsPerCard + (s.autoFlip ? 1 : 0);
     let dotsHtml = "";
     for (let i = 1; i <= cycle; i++) {
       const on = s.playing && s.beat === i;
       const answer = !inGame && s.autoFlip && i === cycle;
-      dotsHtml += '<div style="width: ' + (on ? 12 : 8) + "px; height: " + (on ? 12 : 8) +
-        "px; border-radius: 999px; transition: all 90ms linear; background: " +
-        (on ? "#997373" : answer ? "#ded2cc" : "#e8ded9") +
-        "; border: " + (answer && !on ? "1px solid #cbbab2" : "0") + ';"></div>';
+      dotsHtml += '<div class="beat-dot' + (answer ? " is-answer" : "") +
+        (on ? " is-on" : "") + '"></div>';
     }
     dom.beatDots.innerHTML = dotsHtml;
 
     dom.listenBtns.forEach((b) => {
-      b.textContent = s.micError ? s.micError : s.listening ? "Listening" : "Listen";
-      b.style.cssText = roundBtn + (s.listening
-        ? "#8a9a7b; background: #8a9a7b; color: #fff;"
-        : "#dccfc8; background: #ffffff; color: #2a2120;");
+      if (b.classList.contains("switch")) {
+        b.classList.toggle("is-on", s.listening);
+        b.setAttribute("aria-pressed", s.listening ? "true" : "false");
+        return;
+      }
+      b.textContent = s.micError ? s.micError : s.listening ? "Mic on" : "Mic off";
+      b.classList.toggle("is-on", s.listening);
     });
 
     dom.heardLabels.forEach((h) => {
       h.textContent = !s.listening ? "Off" : s.heard ? s.heard : "—";
-      h.style.color =
-        s.judged === "right" ? "#5f7a4a" :
-        s.judged === "wrong" ? "#a85a4e" :
-        s.heard ? "#2a2120" : "#c2b4ad";
+      h.classList.toggle("is-right", s.judged === "right");
+      h.classList.toggle("is-wrong", s.judged === "wrong");
+      h.classList.toggle("is-heard", !s.judged && !!s.heard);
     });
 
     dom.centsLabels.forEach((c) => {
@@ -2634,14 +2764,14 @@
     });
     dom.centsMarkers.forEach((m) => {
       m.style.opacity = s.heard ? 1 : 0;
-      m.style.left = Math.round(48 + Math.max(-48, Math.min(48, (s.cents / 50) * 45)) - 3) + "px";
-      m.style.background = Math.abs(s.cents) < 15 ? "#8a9a7b" : "#997373";
+      m.style.left = (50 + Math.max(-46, Math.min(46, (s.cents / 50) * 46))) + "%";
+      m.classList.toggle("is-close", Math.abs(s.cents) < 15);
     });
 
     dom.refInputs.forEach((r) => { if (document.activeElement !== r) r.value = s.refA; });
 
     // Result modal
-    dom.resultOverlay.style.display = s.mode === "result" ? "flex" : "none";
+    show(dom.resultOverlay, s.mode === "result");
     if (s.mode === "result") {
       dom.resultTempo.textContent = s.bpm + " bpm · " + s.beatsPerCard +
         (s.beatsPerCard === 1 ? " beat a card" : " beats a card");
@@ -2653,39 +2783,36 @@
         : s.score >= 8 ? "Getting there. Try a slower tempo."
         : "Slow the tempo down and drill the low hand.";
       dom.resultChips.innerHTML = s.results.map((r) =>
-        '<div style="font-size: 12px; letter-spacing: 0.06em; padding: 7px 11px; border-radius: 999px; white-space: nowrap; border: 1px solid ' +
-        (r.hit ? "#c3d0b6; background: #eef2e8; color: #556b41;" : "#e0bdb7; background: #fbf1ef; color: #a85a4e;") +
-        '">' + r.name + "</div>"
+        '<div class="result-chip' + (r.hit ? " is-hit" : "") + '">' + r.name + "</div>"
       ).join("");
       const missed = s.results.filter((r) => !r.hit).map((r) => r.name);
-      dom.missedLine.style.display = missed.length ? "" : "none";
+      show(dom.missedLine, missed.length > 0);
       dom.missedLine.textContent = missed.length ? "Missed: " + missed.join(", ") : "";
     }
 
     // Listening dialog
-    dom.dialogOverlay.style.display = s.dialogStep > 0 ? "flex" : "none";
+    show(dom.dialogOverlay, s.dialogStep > 0);
     if (s.dialogStep > 0) {
       dom.dialogTitle.textContent = DIALOG_TITLES[s.dialogStep];
       dom.dialogStepLabel.textContent = "Step " + Math.min(3, s.dialogStep) + " of 3";
       dom.dialogBody.textContent = DIALOG_BODIES[s.dialogStep];
 
       dom.levelFill.style.width = Math.round(s.level * 100) + "%";
-      dom.levelFill.style.background = s.level > 0.06 ? "#8a9a7b" : "#ded2cc";
+      setOn(dom.levelFill, s.level > 0.06, "is-loud");
       dom.levelLabel.textContent = s.level > 0.06 ? "Sound" : "Silent";
 
-      dom.tunePanel.style.display = s.dialogStep === 2 ? "flex" : "none";
+      show(dom.tunePanel, s.dialogStep === 2);
       if (s.dialogStep === 2) {
         dom.calLabel.textContent = s.calHz ? s.calHz + " Hz" : "—";
         dom.dialogRefA.textContent = s.refA + " Hz";
       }
 
-      dom.scaleGrid.style.display = s.dialogStep === 3 ? "grid" : "none";
+      show(dom.scaleGrid, s.dialogStep === 3);
       if (s.dialogStep === 3) {
         dom.scaleGrid.innerHTML = NOTES.map((n, i) =>
-          '<div style="font-size: 13px; letter-spacing: 0.08em; text-align: center; padding: 10px 6px; border-radius: 8px; white-space: nowrap; border: 1px solid ' +
-          (i < s.checkIdx ? "#c3d0b6; background: #eef2e8; color: #556b41;"
-            : i === s.checkIdx ? (s.judged === "wrong" ? "#e0bdb7; background: #fbf1ef; color: #a85a4e;" : "#997373; background: #ffffff; color: #2a2120;")
-            : "#eee5e0; background: #ffffff; color: #bfb0a9;") +
+          '<div class="scale-cell' +
+          (i < s.checkIdx ? " is-done"
+            : i === s.checkIdx ? (s.judged === "wrong" ? " is-wrong" : " is-now") : "") +
           '">' + n.name + "</div>"
         ).join("");
       }
@@ -2694,11 +2821,7 @@
         s.dialogStep === 1 ? "Sounds right"
         : s.dialogStep === 2 ? (s.calHz ? "Use " + s.calHz + " Hz" : "Waiting…")
         : s.checkIdx >= NOTES.length ? "Start practising" : "Done checking";
-      dom.btnDialogNext.style.cssText =
-        "height: 40px; padding: 0 22px; border-radius: 999px; font-family: 'Jost', sans-serif; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; white-space: nowrap; cursor: pointer; border: 1px solid " +
-        (s.dialogStep === 2 && !s.calHz
-          ? "#e8ded9; background: #f7f1ee; color: #b3a49d;"
-          : "#2a2120; background: #2a2120; color: #fff;");
+      dom.btnDialogNext.disabled = s.dialogStep === 2 && !s.calHz;
     }
   }
 
@@ -2747,6 +2870,32 @@
 
   dom.tabCards.addEventListener("click", () => setView("cards"));
   dom.tabPatterns.addEventListener("click", () => setView("patterns"));
+  dom.tabSettings.addEventListener("click", () => setView("settings"));
+
+  function setTheme(name) {
+    state.theme = name === "dark" ? "dark" : "light";
+    applyTheme();
+    saveTheme();
+    render();
+  }
+  dom.btnThemeLight.addEventListener("click", () => setTheme("light"));
+  dom.btnThemeDark.addEventListener("click", () => setTheme("dark"));
+
+  // Calibration is the mic dialog, which opening the mic already starts; with
+  // the mic already on it goes back to the top of it.
+  dom.btnCalibrate.addEventListener("click", () => {
+    if (!state.listening) { startListening(); return; }
+    state.dialogStep = 1;
+    state.calHz = 0;
+    state.checkIdx = 0;
+    render();
+  });
+
+  dom.btnOpenPicker.addEventListener("click", () => { state.pickerOpen = true; render(); });
+  dom.btnClosePicker.addEventListener("click", () => { state.pickerOpen = false; render(); });
+
+  dom.tabBuildNotes.addEventListener("click", () => { state.buildGraces = false; render(); });
+  dom.tabBuildGraces.addEventListener("click", () => { state.buildGraces = true; render(); });
 
   const cardNavOk = () => state.mode === "practice" && !state.dialogStep;
 
@@ -2779,8 +2928,6 @@
   dom.btnNext.addEventListener("click", advance);
   dom.btnPlay.addEventListener("click", toggle);
   dom.btnGame.addEventListener("click", () => (state.mode === "game" ? exitGame() : startGame()));
-  dom.btnAutoFlip.addEventListener("click", () => { state.autoFlip = !state.autoFlip; state.beat = 0; render(); });
-  dom.beatsSelect.addEventListener("change", (e) => { state.beatsPerCard = Number(e.target.value); state.beat = 0; render(); });
 
   dom.bpmSliders.forEach((sl) => sl.addEventListener("input", (e) => setBpm(Number(e.target.value))));
   dom.bpmUps.forEach((b) => b.addEventListener("click", () => setBpm(state.bpm + 1)));
@@ -2793,7 +2940,6 @@
       else if (e.key === "Escape") { inp.value = state.bpm; inp.blur(); }
     });
   });
-  dom.soundBtns.forEach((b) => b.addEventListener("click", () => { state.sound = !state.sound; render(); }));
   dom.listenBtns.forEach((b) => b.addEventListener("click", () => (state.listening ? stopListening() : startListening())));
   dom.refUps.forEach((b) => b.addEventListener("click", () => setRef(state.refA + 1)));
   dom.refDowns.forEach((b) => b.addEventListener("click", () => setRef(state.refA - 1)));
@@ -2808,7 +2954,9 @@
 
   dom.patternGroups.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-pattern]");
-    if (btn) pickPattern(btn.dataset.pattern);
+    if (!btn) return;
+    state.pickerOpen = false;
+    pickPattern(btn.dataset.pattern);
   });
   dom.customNotes.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-add]");
@@ -2826,7 +2974,6 @@
   dom.btnSavedEdit.addEventListener("click", editSaved);
   dom.btnSavedDelete.addEventListener("click", deleteSaved);
   dom.btnPatternPlay.addEventListener("click", togglePattern);
-  dom.btnPatternReset.addEventListener("click", () => { stopPatternClock(); state.pPlaying = false; resetRun(); });
   dom.btnHear.addEventListener("click", () => (state.demoing ? stopDemo() : playDemo()));
   dom.btnLoop.addEventListener("click", () => {
     state.loop = !state.loop;
@@ -2864,9 +3011,9 @@
   if (!PM) {
     // metronome.js failed to load. A hidden tab is better than a dead view, and
     // the scales page's plain beat runs on the same engine, so it goes too.
-    dom.tabMetronome.style.display = "none";
-    dom.metronomeView.style.display = "none";
-    dom.freeMetroBar.style.display = "none";
+    dom.tabMetronome.hidden = true;
+    dom.metronomeView.hidden = true;
+    dom.btnFreeMetro.hidden = true;
   } else {
     buildMetroExtras();
 
@@ -2888,14 +3035,22 @@
     // iOS Safari has no vibrate at all, so the control is removed rather than
     // left there doing nothing.
     if (!HAS_VIBRATE) {
-      dom.metroHapticsGroup.style.display = "none";
+      dom.metroHapticsGroup.hidden = true;
       state.metro.haptics = false;
     }
     saveMetro();
 
     dom.tabMetronome.addEventListener("click", () => setView("metronome"));
-    dom.btnMetroPlay.addEventListener("click", toggleMetronome);
+    if (dom.btnMetroPlay) dom.btnMetroPlay.addEventListener("click", toggleMetronome);
     if (dom.btnMetroRing) dom.btnMetroRing.addEventListener("click", toggleMetronome);
+    if (dom.btnGoSettings) dom.btnGoSettings.addEventListener("click", () => setView("settings"));
+
+    // The beat pips are the accent editor as well: the design puts the accents
+    // where you are already looking rather than in a separate row.
+    dom.metroPips.addEventListener("click", (e) => {
+      const pip = e.target.closest("[data-beat]");
+      if (pip) cycleAccent(Number(pip.dataset.beat));
+    });
 
     dom.btnMetroTap.addEventListener("click", () => {
       const bpm = metro.tapTempo();     // the engine has already applied it
@@ -2950,14 +3105,14 @@
       render();
     });
 
-    dom.btnMetroAdvanced.addEventListener("click", () => {
-      state.metro.advancedOpen = !state.metro.advancedOpen;
-      saveMetro();
-      render();
+    dom.metroTimeSig.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-val]");
+      if (b) metroTimeSigChange(b.dataset.val);
     });
-
-    dom.metroTimeSig.addEventListener("change", (e) => metroTimeSigChange(e.target.value));
-    dom.metroSubdivision.addEventListener("change", (e) => setMetroSubdivision(Number(e.target.value)));
+    dom.metroSubdivision.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-val]");
+      if (b) setMetroSubdivision(Number(b.dataset.val));
+    });
     if (dom.btnMetroPlainBeat) {
       dom.btnMetroPlainBeat.addEventListener("click", () => {
         const k = metroConfig().subdivision;
@@ -2969,13 +3124,7 @@
 
     dom.metroAccents.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-beat]");
-      if (!btn) return;
-      const i = Number(btn.dataset.beat);
-      const accents = metroConfig().accents.slice();
-      if (!(i >= 0 && i < accents.length)) return;
-      // strong → normal → soft → silent → strong
-      accents[i] = (accents[i] + 3) % 4;
-      setMetro({ accents: accents });
+      if (btn) cycleAccent(Number(btn.dataset.beat));
     });
 
     dom.metroPointing.addEventListener("input",
@@ -3005,12 +3154,14 @@
       () => setMetro({ drone: { on: !metroConfig().drone.on }, refHz: state.refA }, true));
     dom.metroDroneLevel.addEventListener("input",
       (e) => setMetro({ drone: { level: Number(e.target.value) / 100 } }, true));
-    dom.metroSound.addEventListener("change",
-      (e) => setMetro({ clickSound: e.target.value }, true));
+    dom.metroSound.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-val]");
+      if (b) setMetro({ clickSound: b.dataset.val }, true);
+    });
 
     dom.btnMetroFlash.addEventListener("click", () => {
       state.metro.flash = !state.metro.flash;
-      if (!state.metro.flash) dom.metroStage.classList.remove("metro-flash");
+      if (!state.metro.flash) dom.flashLayer.classList.remove("is-on");
       saveMetro();
       render();
     });
@@ -3034,6 +3185,8 @@
     const t = e.target;
     if (t && typeof t.matches === "function" && t.matches("input, select, textarea")) return;
     if (state.dialogStep) return;
+    if (state.view === "settings") return;
+    if (state.pickerOpen) return;
     if (state.view === "metronome") {
       if (e.key === " ") { e.preventDefault(); toggleMetronome(); }
       return;

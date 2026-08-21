@@ -9,15 +9,35 @@ you hit the right note — and, on the beat drills, whether you were early or la
 It is a self-contained static site (no build step, no dependencies) and an
 installable PWA, so it can be added to a phone's home screen and used offline.
 
+## How it is laid out
+
+The app is built for a phone and keeps the same shape at every width: one
+column, capped at 480 pixels and centred, with a tab bar along the bottom.
+
+| Tab | What is on it |
+| --- | --- |
+| **Cards** | The flashcard deck |
+| **Drill** | Scales, patterns and embellishments, scored against the beat |
+| **Beat** | The metronome dial, its tempo and the tune types |
+| **Settings** | Appearance, the microphone, and everything the metronome can be told to do |
+
+Choosing a drill and the three-step microphone setup each take over the whole
+screen rather than sitting in a dialog, since there is no room on a phone for
+both at once.
+
+There is a **Light** and a **Dark** theme, set on the Settings tab and
+remembered per device. The browser's own chrome follows it.
+
 ## What it does
 
 ### Flashcards
-- Random notes from Low G to High A, click or press Enter to flip. Arrows either
-  side of the card step through the deck; on a phone they give way to swiping
-- Two card faces: **Notation** shows the note on the staff, **Fingering** shows
+- Random notes from Low G to High A. Tap the card or press Enter to reveal the
+  answer; the arrows either side step through the deck, and a swipe does the
+  same
+- Two card faces: **Notes** shows the note on the staff, **Fingerings** shows
   the chanter chart for it. Either way the note name is on the back
-- Metronome-paced auto-advance with adjustable tempo and beats per card
-- Auto-flip reveals the answer on the beat after the note
+- **Play** walks the deck to the metronome — four beats a card, with the answer
+  turned over on the beat after
 - **Listening round** — a scored 20-card game; play each note before its time
   runs out and get a per-card breakdown at the end
 
@@ -48,16 +68,19 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   note is timed against when you *heard* it, and the highlight waits with you.
   The delay is read from the browser where it reports one and typed in where it
   does not; after a run the app says what the number should have been
-- **Hear it** plays the pattern back so you know what you are aiming for —
+- **Listen** plays the pattern back so you know what you are aiming for —
   gracenotes and all — as one continuous reed tone pitched to your own Low A.
   With **Loop** on it repeats seamlessly so you can play along; nothing is
   scored while it plays, since the mic would otherwise hear the app itself
+- **Test mode** is the scored run, and the only thing here that needs a
+  microphone — so it is what asks for one. Tap it with the mic off and the
+  three-step setup runs first; tap it again afterwards to start the run
 - Clean-run streak, optional looping, and a persisted log of recent runs showing
   notes correct and notes on beat
 
 ### Metronome
 - A beat ring with a sweeping hand, one pip per beat, and the tempo in the
-  middle. Start it with the button or the space bar
+  middle. The dial is the start button; the space bar does the same
 - Tune-type presets — plain click, marches in 2/4, 3/4, 4/4, 6/8 and 9/8,
   strathspey, reel, jig, hornpipe and slow airs. Each one sets the time
   signature, subdivision, pointing and accents together, and carries three
@@ -67,10 +90,13 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   minute beside it. Piping sources disagree about tempo numbers mostly because
   they count different units: a reel is in cut time at half notes, so a reel at
   86 covers 43 bars a minute while a strathspey at 116 covers 29
-- Tap tempo, count-in, click on or off, and volume
-- Advanced settings, folded away and remembered: time signature, subdivision,
-  a per-beat accent editor, pointing, beat stretch, gap trainer, tempo ramp,
-  drone, click sound, screen flash and haptics
+- Tap tempo, count-in and volume
+- Tap a beat on the ring to cycle it through strong, normal, soft and silent
+- The dial itself carries only the tempo and the tune type. Everything else it
+  can be told to do — time signature, accents, subdivision, pointing, beat
+  stretch, silent bars, tempo ramp, drone, click sound, screen flash and
+  haptics — lives on the **Settings** tab, with a line on the metronome saying
+  which of them are switched on
 - **Pointing** is how unevenly a pair of notes is played. The middle of the
   slider is round — both notes the same length — and 75 is the written dot of a
   2/4 march. Below the middle it flips into the short-then-long Scots snap a
@@ -84,9 +110,6 @@ installable PWA, so it can be added to a phone's home screen and used offline.
   The bass drone is too low for a phone speaker; use headphones to hear it
 - Timing runs on the audio clock, so it holds while the tab is in the
   background, and the screen is kept awake where the browser allows it
-
-There is no piobaireachd setting. The ground of a piobaireachd is not played in
-strict time, and a click would teach the wrong thing.
 
 ### Microphone
 A three-step setup checks the input level, calibrates the reference pitch, and
@@ -117,8 +140,8 @@ Then open http://localhost:8765.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Markup for all three views and the dialogs |
-| `styles.css` | All styling, including the narrow-screen layout |
+| `index.html` | Markup for the four tabs and the full-screen sheets |
+| `styles.css` | All styling, and the light and dark palettes |
 | `metronome.js` | The metronome's clock, click and drone — no DOM |
 | `app.js` | State, drill timing, pitch detection, scoring, rendering |
 | `sw.js` | Service worker — offline app shell and font cache |

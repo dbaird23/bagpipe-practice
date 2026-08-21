@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bagpipe note drill</title>
 <meta name="description" content="Flashcards, scales and crossing-noise practice for the Highland bagpipe chanter, with microphone note and timing detection.">
-<meta name="theme-color" content="#f3ece8">
+<meta name="theme-color" content="#f3ece8" id="themeColor">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon-32.png" sizes="32x32">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -19,44 +19,49 @@
 </head>
 <body>
 
-<div class="page">
+<!-- The whole app is one phone-shaped column at every width: a scrolling screen
+     with a tab bar pinned under it. -->
+<div class="app">
 
-  <div class="header-block">
-    <div class="header">
-      <div class="title" id="heading">Bagpipe note drill</div>
-      <div class="counter" id="counter">1 / 9</div>
-    </div>
-    <div class="tab-group main-tabs">
-      <button id="tabCards" class="tab">Flashcards</button>
-      <button id="tabPatterns" class="tab">Scales &amp; patterns</button>
-      <button id="tabMetronome" class="tab">Metronome</button>
-    </div>
-  </div>
+  <div class="flash-layer" id="flashLayer" aria-hidden="true"></div>
+
+  <div class="screens" id="screens">
 
   <!-- ─────────────────────────── Flashcards view ─────────────────────────── -->
-  <div class="view" id="cardsView">
+  <section class="view" id="cardsView">
 
-    <div class="card-row">
-    <button id="btnPrev" class="circle-btn nav-arrow" aria-label="Previous note">&#8592;</button>
+    <header class="screen-head">
+      <h1 class="screen-title" id="heading">Flashcards</h1>
+      <div class="head-stat">
+        <div class="head-stat-value" id="counter">1 / 9</div>
+        <div class="label" id="counterLabel">this session</div>
+      </div>
+    </header>
+
+    <div class="segmented">
+      <button id="tabFaceStaff" class="seg" type="button">Notes</button>
+      <button id="tabFaceFinger" class="seg" type="button">Fingerings</button>
+    </div>
 
     <div class="card" id="card">
       <div class="card-inner" id="cardInner">
 
         <div class="card-face card-front" id="cardFront">
           <img id="chanterImg" class="chanter-img" alt="" style="display: none;">
-          <svg id="staffSvg" viewBox="0 0 180 104" style="width: 100%; height: auto; overflow: visible;">
-            <g stroke="#2a2120" stroke-width="1.1">
-              <line x1="10" y1="20" x2="170" y2="20"></line>
-              <line x1="10" y1="32" x2="170" y2="32"></line>
-              <line x1="10" y1="44" x2="170" y2="44"></line>
-              <line x1="10" y1="56" x2="170" y2="56"></line>
-              <line x1="10" y1="68" x2="170" y2="68"></line>
+          <svg id="staffSvg" viewBox="0 0 320 104" aria-hidden="true">
+            <g class="staff-lines" stroke-width="1.2">
+              <line x1="14" y1="20" x2="306" y2="20"></line>
+              <line x1="14" y1="32" x2="306" y2="32"></line>
+              <line x1="14" y1="44" x2="306" y2="44"></line>
+              <line x1="14" y1="56" x2="306" y2="56"></line>
+              <line x1="14" y1="68" x2="306" y2="68"></line>
             </g>
-            <text x="14" y="69" font-family="'Noto Music', serif" font-size="48" fill="#2a2120">&#119070;</text>
-            <line id="ledgerLine" x1="103" y1="8" x2="133" y2="8" stroke="#2a2120" stroke-width="1.1" style="display: none;"></line>
-            <ellipse id="noteHead" cx="118" cy="50" rx="8.4" ry="5.9" fill="#2a2120"></ellipse>
-            <rect id="noteStem" x="110" y="50" width="1.8" height="42" fill="#2a2120"></rect>
+            <text class="staff-clef" x="22" y="66" font-family="'Noto Music', serif" font-size="52">&#119070;</text>
+            <line id="ledgerLine" x1="152" y1="8" x2="188" y2="8" stroke-width="1.4" style="display: none;"></line>
+            <ellipse id="noteHead" cx="170" cy="50" rx="10.5" ry="7.4"></ellipse>
+            <rect id="noteStem" x="160" y="50" width="2.2" height="46"></rect>
           </svg>
+          <div class="card-tap-hint" id="cardTapHint">tap to reveal</div>
         </div>
 
         <div class="card-face card-back">
@@ -67,619 +72,522 @@
       </div>
     </div>
 
-    <button id="btnNext" class="circle-btn nav-arrow" aria-label="Next note">&#8594;</button>
+    <div class="status-line" id="cardStatus"></div>
+
+    <div class="heard-bar">
+      <div class="label">Heard</div>
+      <div class="heard-label js-heard">Off</div>
+      <div class="cents-track">
+        <div class="cents-center"></div>
+        <div class="cents-marker js-cents-marker"></div>
+      </div>
+      <div class="cents-label js-cents-label"></div>
     </div>
 
-    <div class="controls">
-
-      <div class="tab-group">
-        <button id="tabFaceStaff" class="tab">Notation</button>
-        <button id="tabFaceFinger" class="tab">Fingering</button>
-      </div>
-
-      <div class="transport">
-        <button id="btnPlay" class="pill-btn">Play</button>
-        <button id="btnGame" class="pill-btn">Listening round</button>
-      </div>
-
-      <div class="bar">
-        <div class="bar-group">
-          <div class="bar-label">Tempo</div>
-          <button class="circle-btn js-bpm-down" style="width: 32px; height: 32px; font-size: 17px; line-height: 1;">&minus;</button>
-          <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" style="width: 130px; accent-color: #997373;">
-          <button class="circle-btn js-bpm-up" style="width: 32px; height: 32px; font-size: 17px; line-height: 1;">+</button>
-          <input class="bpm-value bpm-input js-bpm-val" type="text" inputmode="numeric" value="60" title="Click to type a tempo">
-        </div>
-        <div class="divider"></div>
-        <div class="bar-group" style="gap: 10px;">
-          <div class="bar-label">Beats / card</div>
-          <select id="beatsSelect" class="beats-select">
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="4" selected>4</option>
-            <option value="8">8</option>
-          </select>
-        </div>
-        <div class="divider"></div>
-        <button id="btnAutoFlip" class="pill-btn">Auto-flip on</button>
-        <div class="divider"></div>
-        <button class="pill-btn js-sound">Click on</button>
-      </div>
-
-      <div class="beat-dots" id="beatDots"></div>
-
-      <div class="bar listen-bar" style="padding: 12px 22px; gap: 22px;">
-        <button class="pill-btn js-listen">Listen</button>
-        <div class="heard-group">
-          <div class="heard-label js-heard">Off</div>
-          <div class="cents-track">
-            <div class="cents-center"></div>
-            <div class="cents-marker js-cents-marker"></div>
-          </div>
-          <div class="cents-label js-cents-label"></div>
-        </div>
-        <div class="divider" style="height: 24px;"></div>
-        <div class="bar-group" style="gap: 8px;">
-          <div class="bar-label">Low A</div>
-          <button class="circle-btn js-ref-down" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">&minus;</button>
-          <div class="ref-value">
-            <input class="ref-input js-ref" type="text" inputmode="numeric" value="235" title="Click to type a frequency">
-            <span>Hz</span>
-          </div>
-          <button class="circle-btn js-ref-up" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">+</button>
-        </div>
-      </div>
-
-      <div class="footnote">
-        <span class="only-wide">Click the card to flip &middot; &#8594; next &middot; &#8592; back &middot; space plays</span>
-        <span class="only-narrow">Tap the card to flip &middot; swipe left or right to change card</span>
-      </div>
-
+    <div class="transport">
+      <button id="btnPrev" class="circle-btn" type="button" aria-label="Previous note">&#8592;</button>
+      <button id="btnPlay" class="circle-btn circle-btn-primary" type="button">Play</button>
+      <button id="btnNext" class="circle-btn" type="button" aria-label="Next note">&#8594;</button>
     </div>
 
-  </div>
+    <div class="beat-dots" id="beatDots"></div>
 
-  <!-- ──────────────────────── Scales & patterns view ─────────────────────── -->
-  <div class="view patterns-view" id="patternsView" style="display: none;">
+    <div class="pill-row">
+      <button class="pill-btn js-listen" type="button">Listen</button>
+      <button id="btnGame" class="pill-btn" type="button">Listening round</button>
+    </div>
 
-    <div id="patternGroups"></div>
+    <p class="footnote">Tap the card to reveal &middot; swipe or use the arrows to change card &middot; space plays</p>
 
-    <div class="pattern-card">
+  </section>
 
-      <div class="pattern-head">
-        <div class="pattern-head-left">
-          <div class="pattern-name" id="patternName">Full scale, up and down</div>
-          <div class="bar-label" id="patternMeta">17 notes</div>
-        </div>
-        <div class="streak-group">
-          <div class="bar-label">Clean runs</div>
-          <div class="streak-value" id="streakVal">0</div>
-        </div>
+  <!-- ──────────────────────── Scales &amp; patterns view ─────────────────────── -->
+  <section class="view" id="patternsView" hidden>
+
+    <header class="screen-head">
+      <button id="btnOpenPicker" class="pattern-pick-btn" type="button">
+        <span class="screen-title" id="patternName">Full scale, up and down</span>
+        <span class="change-hint">change &#9662;</span>
+      </button>
+      <div class="head-stat">
+        <div class="head-stat-value" id="streakVal">0</div>
+        <div class="label">clean runs</div>
       </div>
+    </header>
 
-      <div class="custom-builder" id="customBuilder" style="display: none;">
-        <div class="custom-row">
-          <div class="bar-label" style="width: 96px;">Notes</div>
-          <div class="custom-notes" id="customNotes"></div>
-          <div style="flex: 1;"></div>
-          <button id="btnCustomUndo" class="mini-btn">Undo</button>
-          <button id="btnCustomClear" class="mini-btn">Clear</button>
-        </div>
-        <div class="custom-row">
-          <div class="bar-label" style="width: 96px;">Gracenotes</div>
-          <div class="custom-notes" id="customGraces"></div>
-          <div class="grace-note-hint" id="graceBuildHint"></div>
-        </div>
-        <div class="custom-row">
-          <div class="bar-label" style="width: 96px;">Name</div>
-          <input id="customName" class="name-input" type="text" maxlength="40" placeholder="Give it a name to save it">
-          <button id="btnCustomSave" class="mini-btn mini-btn-dark">Save</button>
-          <div class="save-hint" id="saveHint"></div>
-        </div>
-      </div>
-
-      <div class="saved-bar" id="savedBar" style="display: none;">
-        <div class="bar-label">Saved pattern</div>
-        <div class="saved-name" id="savedName"></div>
-        <div class="save-hint" id="savedHint"></div>
-        <div style="flex: 1;"></div>
-        <button id="btnSavedEdit" class="mini-btn">Edit</button>
-        <button id="btnSavedDelete" class="mini-btn">Delete</button>
-      </div>
-
+    <div class="panel staff-panel" id="staffPanel">
       <div class="staff-rows" id="staffRows"></div>
-
-      <div class="status-line" id="statusLine"></div>
-      <div class="pattern-hint" id="patternHint" style="display: none;"></div>
-
     </div>
 
-    <div class="pattern-controls">
-      <button id="btnPatternPlay" class="pill-btn">Play</button>
-      <button id="btnHear" class="pill-btn">Hear it</button>
-      <button id="btnPatternReset" class="ghost-btn" style="height: 44px; padding: 0 20px;">Restart</button>
-      <button id="btnLoop" class="pill-btn">Loop on</button>
-      <div class="bar tempo-bar" id="patternTempo" style="padding: 10px 18px; gap: 10px;">
-        <div class="bar-label">Tempo</div>
-        <button class="circle-btn js-bpm-down" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">&minus;</button>
-        <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" style="width: 110px; accent-color: #997373;">
-        <button class="circle-btn js-bpm-up" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">+</button>
-        <input class="bpm-input js-bpm-val" type="text" inputmode="numeric" value="60" style="font-size: 19px; width: 38px;" title="Click to type a tempo">
+    <div class="panel custom-builder" id="customBuilder" hidden>
+      <div class="panel-head">
+        <div class="label">Build note by note</div>
+        <div class="segmented segmented-sm">
+          <button id="tabBuildNotes" class="seg" type="button">Notes</button>
+          <button id="tabBuildGraces" class="seg" type="button">Gracenotes</button>
+        </div>
       </div>
-      <button class="pill-btn js-sound">Click on</button>
-      <button id="btnLag" class="pill-btn">Bluetooth off</button>
+      <div class="note-grid" id="customNotes"></div>
+      <div class="note-grid" id="customGraces" hidden></div>
+      <div class="build-hint" id="graceBuildHint"></div>
+      <div class="name-row">
+        <input id="customName" class="text-input" type="text" maxlength="40" placeholder="Name this pattern">
+        <button id="btnCustomSave" class="pill-btn pill-btn-dark" type="button">Save</button>
+      </div>
+      <div class="build-hint" id="saveHint"></div>
+      <div class="split-row">
+        <button id="btnCustomUndo" class="pill-btn" type="button">Undo</button>
+        <button id="btnCustomClear" class="pill-btn" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div class="panel saved-bar" id="savedBar" hidden>
+      <div class="saved-head">
+        <div class="label">Saved pattern</div>
+        <div class="saved-name" id="savedName"></div>
+      </div>
+      <div class="build-hint" id="savedHint"></div>
+      <div class="split-row">
+        <button id="btnSavedEdit" class="pill-btn" type="button">Edit</button>
+        <button id="btnSavedDelete" class="pill-btn pill-btn-danger" type="button">Delete</button>
+      </div>
+    </div>
+
+    <div class="status-line" id="statusLine"></div>
+    <p class="footnote" id="patternHint" hidden></p>
+
+    <div class="heard-bar">
+      <div class="label">Heard</div>
+      <div class="heard-label js-heard">Off</div>
+      <div class="cents-track">
+        <div class="cents-center"></div>
+        <div class="cents-marker js-cents-marker"></div>
+      </div>
+      <div class="cents-label js-cents-label"></div>
+    </div>
+
+    <div class="slider-pill" id="patternTempo">
+      <div class="label">Tempo</div>
+      <input type="range" class="js-bpm" min="30" max="160" step="1" value="60" aria-label="Tempo in beats per minute">
+      <input class="num-input js-bpm-val" type="text" inputmode="numeric" value="60" title="Click to type a tempo" aria-label="Tempo, type a number">
+    </div>
+
+    <div class="transport">
+      <button id="btnPatternPlay" class="circle-btn circle-btn-primary" type="button">Test mode</button>
+    </div>
+
+    <div class="pill-row">
+      <button id="btnHear" class="pill-btn" type="button">Listen</button>
+      <button id="btnLoop" class="pill-btn" type="button">Loop on</button>
+      <button id="btnFreeMetro" class="pill-btn" type="button">Just metronome</button>
+      <button id="btnLag" class="pill-btn" type="button">Bluetooth off</button>
     </div>
 
     <!-- Only there once the delay is switched on: it is a set-once number, not
          something to be nudged between runs. -->
-    <div class="lag-bar" id="lagBar" style="display: none;">
-      <div class="bar" style="padding: 10px 18px; gap: 10px;">
-        <div class="bar-label">Headphone delay</div>
-        <button id="btnLagDown" class="circle-btn" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">&minus;</button>
-        <input id="lagInput" class="bpm-input" type="text" inputmode="numeric" value="170" style="font-size: 19px; width: 44px;" title="Click to type a delay in milliseconds">
-        <div class="bar-label" style="letter-spacing: 0.08em;">ms</div>
-        <button id="btnLagUp" class="circle-btn" style="width: 30px; height: 30px; font-size: 16px; line-height: 1;">+</button>
+    <div class="panel" id="lagBar" hidden>
+      <div class="stepper-row">
+        <div class="stepper-label">Headphone delay</div>
+        <button id="btnLagDown" class="step-btn" type="button" aria-label="Less delay">&minus;</button>
+        <div class="stepper-value"><input id="lagInput" class="num-input" type="text" inputmode="numeric" value="170" title="Click to type a delay in milliseconds" aria-label="Headphone delay in milliseconds"><span>ms</span></div>
+        <button id="btnLagUp" class="step-btn" type="button" aria-label="More delay">+</button>
       </div>
-      <div class="lag-hint" id="lagHint"></div>
-    </div>
-
-    <div class="bar listen-bar" style="padding: 12px 22px; gap: 22px;">
-      <button class="pill-btn js-listen">Listen</button>
-      <div class="heard-group">
-        <div class="heard-label js-heard">Off</div>
-        <div class="cents-track">
-          <div class="cents-center"></div>
-          <div class="cents-marker js-cents-marker"></div>
-        </div>
-        <div class="cents-label js-cents-label"></div>
-      </div>
-      <div class="divider" style="height: 24px;"></div>
-      <div class="bar-group" style="gap: 8px;">
-        <div class="bar-label">Low A</div>
-        <button class="circle-btn js-ref-down" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">&minus;</button>
-        <div class="ref-value">
-          <input class="ref-input js-ref" type="text" inputmode="numeric" value="235" title="Click to type a frequency">
-          <span>Hz</span>
-        </div>
-        <button class="circle-btn js-ref-up" style="width: 28px; height: 28px; font-size: 15px; line-height: 1;">+</button>
-      </div>
-    </div>
-
-    <!-- Spot practice: the pulse on its own. No count-in, no run, no note to
-         follow and nothing scored — the page stops telling you what to play and
-         just keeps time while you work at whatever you like. -->
-    <div class="free-metro" id="freeMetroBar">
-      <button id="btnFreeMetro" class="pill-btn">Just metronome</button>
-      <div class="free-metro-hint" id="freeMetroHint"></div>
+      <div class="build-hint" id="lagHint"></div>
     </div>
 
     <div class="legend" id="legend"></div>
 
-    <div class="history-panel" id="historyPanel" style="display: none;">
-      <div class="history-head">
-        <div class="bar-label">Recent runs</div>
-        <button id="btnClearHistory" class="mini-btn">Clear</button>
+    <div class="panel history-panel" id="historyPanel" hidden>
+      <div class="panel-head">
+        <div class="label">Recent runs</div>
+        <button id="btnClearHistory" class="pill-btn pill-btn-sm" type="button">Clear</button>
       </div>
       <div id="historyRows"></div>
     </div>
 
-  </div>
+  </section>
 
   <!-- ───────────────────────────── Metronome view ────────────────────────── -->
-  <div class="view metro-view" id="metronomeView" style="display: none;">
+  <section class="view" id="metronomeView" hidden>
+
+    <header class="screen-head">
+      <h1 class="screen-title">Metronome</h1>
+      <div class="label" id="metroSigLabel">4/4 &middot; 4 beats a bar</div>
+    </header>
 
     <div class="metro-stage" id="metroStage">
 
-      <div class="metro-ring-wrap" id="metroRingWrap">
-        <!-- The dial is the start button: it is the biggest thing on the page,
-             so it should be the thing you can hit without aiming. -->
-        <button id="btnMetroRing" class="metro-ring-btn" type="button"
+      <div class="metro-dial" id="metroRingWrap">
+        <svg id="metroRing" class="metro-ring" viewBox="0 0 260 260" aria-hidden="true" focusable="false">
+          <circle class="metro-track" cx="130" cy="130" r="112"></circle>
+          <!-- One tick per subdivision, drawn by app.js. -->
+          <g id="metroTicks"></g>
+          <!-- One pip per beat, drawn by app.js. Tap one to change its accent. -->
+          <g id="metroPips"></g>
+          <!-- The hand: a ring that rides the pips, so the middle of the dial
+               stays clear. app.js sets transform="rotate(deg 130 130)". -->
+          <g id="metroHand" class="metro-hand" transform="rotate(0 130 130)">
+            <circle class="metro-hand-tip" cx="130" cy="18" r="14.5"></circle>
+          </g>
+        </svg>
+
+        <!-- The dial face is the start button: it is the biggest thing on the
+             screen, so it should be the thing you can hit without aiming. -->
+        <button id="btnMetroRing" class="metro-face-btn" type="button"
                 aria-label="Start or stop the metronome">
-          <svg id="metroRing" class="metro-ring" viewBox="0 0 260 260" aria-hidden="true"
-               focusable="false">
-
-            <circle class="metro-face" cx="130" cy="130" r="100"></circle>
-            <circle class="metro-track" cx="130" cy="130" r="112"></circle>
-
-            <!-- One tick per subdivision, drawn by app.js. -->
-            <g id="metroTicks"></g>
-
-            <!-- One pip per beat, drawn by app.js. -->
-            <g id="metroPips"></g>
-
-            <!-- The hand: a ring that rides the pips, so the middle of the dial
-                 stays clear. app.js sets transform="rotate(deg 130 130)". -->
-            <g id="metroHand" class="metro-hand" transform="rotate(0 130 130)">
-              <circle class="metro-hand-tip" cx="130" cy="18" r="14.5"></circle>
-            </g>
-
-            <text id="metroBpm" class="metro-bpm" x="130" y="122">72</text>
-            <text class="metro-bpm-caption" x="130" y="144">BPM</text>
-            <text id="metroPos" class="metro-pos" x="130" y="168">Tap the dial to start</text>
-            <text id="metroBeatUnit" class="metro-beat-unit" x="130" y="190">counting quarter notes</text>
-
-          </svg>
+          <span class="metro-bpm" id="metroBpm">72</span>
+          <span class="metro-bpm-caption">BPM</span>
+          <span class="metro-pos" id="metroPos">Tap the dial to start</span>
+          <span class="metro-beat-unit" id="metroBeatUnit">counting quarter notes</span>
         </button>
       </div>
 
-      <div class="metro-presets">
-        <div class="bar-label">Tune type</div>
-        <div class="metro-chips" id="metroPresets"></div>
-        <div class="metro-help metro-presets-help">
-          <span class="metro-help-long">Starting points, not rules. Pick the tune
-            type, then move the tempo to whatever you can play cleanly today.</span>
-          <span class="metro-help-short">Starting points &mdash; move the tempo to
-            whatever you can play cleanly.</span>
+      <p class="footnote">tap a beat to cycle strong &middot; normal &middot; soft &middot; silent</p>
+
+      <div class="panel">
+        <div class="stepper-row">
+          <button id="btnMetroBpmDown" class="step-btn" type="button" aria-label="Slower">&minus;</button>
+          <input id="metroBpmRange" class="flex-range" type="range" min="30" max="240" step="1" value="72" aria-label="Tempo in beats per minute">
+          <button id="btnMetroBpmUp" class="step-btn" type="button" aria-label="Faster">+</button>
+          <input id="metroBpmInput" class="num-input" type="text" inputmode="numeric" value="72" title="Click to type a tempo" aria-label="Tempo, type a number">
         </div>
-        <div class="metro-help metro-presets-help metro-caveat" id="metroCaveat"
-             style="display: none;"></div>
+        <button id="btnMetroTap" class="tap-btn" type="button">Tap tempo</button>
       </div>
 
-      <div class="metro-transport">
-        <button id="btnMetroPlay" class="pill-btn metro-play">Start</button>
-      </div>
-
-      <!-- Reading order is the doing order at every width: pick the tune type,
-           press Start, then settle the tempo. Nothing here is reordered in CSS,
-           so the tab order and the eye follow the same path. -->
-      <div class="bar metro-tempo">
-        <div class="bar-label">Tempo</div>
-        <button id="btnMetroBpmDown" class="circle-btn metro-step" aria-label="Slower">&minus;</button>
-        <input id="metroBpmInput" class="bpm-input metro-bpm-input" type="text"
-               inputmode="numeric" value="72" title="Click to type a tempo"
-               aria-label="Tempo, type a number">
-        <button id="btnMetroBpmUp" class="circle-btn metro-step" aria-label="Faster">+</button>
-        <input id="metroBpmRange" class="metro-range metro-range-tempo" type="range"
-               min="30" max="240" step="1" value="72" aria-label="Tempo in beats per minute">
-        <button id="btnMetroTap" class="mini-btn metro-tap" type="button">Tap tempo</button>
-      </div>
-
-      <!-- Sits under the tempo because it is about the tempo: which of the tune
-           type's three speeds you are on, and what that speed works out as in
-           bars a minute. Published piping tempos count different note values,
-           so bars a minute is the only figure that compares directly. -->
-      <div class="metro-speed" id="metroSpeedRow">
-        <div class="metro-chips" id="metroSpeedChips"></div>
+      <div class="panel">
+        <div class="chip-row" id="metroSpeedChips"></div>
         <div class="metro-rate" id="metroRate"></div>
-        <div class="metro-help metro-presets-help" id="metroRateHelp"></div>
+        <div class="build-hint" id="metroRateHelp"></div>
       </div>
 
-      <div class="bar metro-basic-bar">
-        <button id="btnMetroPlainBeat" class="mini-btn" type="button" aria-pressed="false">Just the beat</button>
-        <button id="btnMetroCountIn" class="mini-btn" type="button" aria-pressed="true">Count-in</button>
-        <button id="btnMetroClick" class="mini-btn" type="button" aria-pressed="true">Click</button>
-        <div class="bar-group metro-volume-group">
-          <div class="bar-label">Volume</div>
-          <input id="metroVolume" class="metro-range metro-range-vol" type="range"
-                 min="0" max="100" step="1" value="80" aria-label="Click volume">
-          <div class="metro-val" id="metroVolumeVal">80</div>
-        </div>
+      <div class="group">
+        <div class="label">Tune types &mdash; starting points, not rules</div>
+        <div class="chip-row" id="metroPresets"></div>
+        <p class="footnote footnote-left">Pick the tune type, then move the tempo to whatever you can play cleanly today.</p>
+        <p class="footnote footnote-left" id="metroCaveat" hidden></p>
+      </div>
+
+      <div class="panel">
+        <div class="label">Also switched on</div>
+        <div class="extras-summary" id="metroExtras"></div>
+        <button id="btnGoSettings" class="pill-btn" type="button">Metronome settings &#8594;</button>
       </div>
 
     </div>
 
-    <div class="metro-advanced">
-
-      <button id="btnMetroAdvanced" class="metro-disclosure" type="button"
-              aria-expanded="false" aria-controls="metroAdvancedBody">
-        <span class="metro-disclosure-caret" aria-hidden="true">&#9656;</span>
-        <span>Advanced settings</span>
-      </button>
-
-      <div id="metroAdvancedBody" class="metro-advanced-body" style="display: none;">
-
-        <div class="metro-group">
-          <div class="bar-label">More tune types</div>
-          <div class="metro-control">
-            <div class="metro-chips" id="metroPresetsMore"></div>
-          </div>
-          <div class="metro-help">
-            The rest of the common types. Each one sets everything at once, the
-            same way the row on the card above does.
-          </div>
-        </div>
-
-        <div class="metro-section-head">The bar</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Time signature</div>
-          <div class="metro-control">
-            <select id="metroTimeSig" class="beats-select metro-select" aria-label="Time signature">
-              <option value="2/4">2/4</option>
-              <option value="3/4">3/4</option>
-              <option value="4/4" selected>4/4</option>
-              <option value="2/2">2/2 cut time</option>
-              <option value="6/8">6/8</option>
-              <option value="9/8">9/8</option>
-              <option value="12/8">12/8</option>
-            </select>
-          </div>
-          <div class="metro-help">
-            How many beats fall in a bar, and which note counts as one beat. The
-            6/8, 9/8 and 12/8 settings count dotted quarter notes, so 6/8 gives
-            two clicks a bar rather than six.
-          </div>
-        </div>
-
-        <div class="metro-section-head">The click</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Extra clicks between beats</div>
-          <div class="metro-control">
-            <select id="metroSubdivision" class="beats-select metro-select"
-                    aria-label="Extra clicks between beats">
-              <option value="1" selected>Off &mdash; one click a beat</option>
-              <option value="2">2 &mdash; eighth notes</option>
-              <option value="3">3 &mdash; triplets</option>
-              <option value="4">4 &mdash; sixteenth notes</option>
-              <option value="6">6 &mdash; two triplets</option>
-            </select>
-          </div>
-          <div class="metro-help">
-            Quieter clicks in the gaps between the beats, so you can hear where
-            the small notes belong. Leave it off while you are still learning to
-            land on the beat.
-          </div>
-        </div>
-
-        <div class="metro-group">
-          <div class="bar-label">Accents</div>
-          <div class="metro-control">
-            <div class="metro-accents" id="metroAccents"></div>
-          </div>
-          <div class="metro-help">
-            How loud each beat of the bar is. Tap a beat to cycle it through
-            strong, normal, soft and silent. A silent beat still sounds any extra
-            clicks sitting inside it.
-          </div>
-        </div>
-
-        <div class="metro-group">
-          <div class="bar-label">Click sound</div>
-          <div class="metro-control">
-            <select id="metroSound" class="beats-select metro-select" aria-label="Click sound">
-              <option value="click" selected>Click</option>
-              <option value="wood">Wood</option>
-              <option value="beep">Beep</option>
-            </select>
-          </div>
-          <div class="metro-help">
-            Wood carries over a practice chanter. Beep carries over a full set of
-            pipes.
-          </div>
-        </div>
-
-        <div class="metro-section-head">Rhythm and lift</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Pointing</div>
-          <div class="metro-control">
-            <span class="metro-range-end">Snap</span>
-            <!-- The wrapper carries a tick at the middle of the track: this
-                 slider is symmetric about 50, and without the mark the left end
-                 looks like the neutral one. -->
-            <span class="metro-range-wrap metro-range-centred">
-              <input id="metroPointing" class="metro-range" type="range"
-                     min="15" max="90" step="1" value="50" aria-label="Pointing">
-            </span>
-            <span class="metro-range-end">Pointed</span>
-            <div class="metro-val" id="metroPointingVal">50</div>
-          </div>
-          <div class="metro-help">
-            How unevenly a pair of notes is played. In the middle both notes are
-            the same length &mdash; pipers call that round. To the right the first
-            note gets longer and the second shorter and sharper, the dotted rhythm
-            of a march, which sits around 75. To the left it flips into a short
-            note snapping into a long one, the way a strathspey does.
-          </div>
-        </div>
-
-        <div class="metro-group">
-          <div class="bar-label">Beat stretch</div>
-          <div class="metro-control">
-            <span class="metro-range-end">None</span>
-            <input id="metroPulse" class="metro-range" type="range"
-                   min="0" max="15" step="1" value="0" aria-label="Beat stretch">
-            <span class="metro-range-end">Strong</span>
-            <div class="metro-val" id="metroPulseVal">0</div>
-          </div>
-          <div class="metro-help">
-            Moves the beats themselves, lengthening the first and shortening the
-            rest to pay for it, so the bar still takes exactly as long as it
-            should. This is not what pipers mean by pulsing a strathspey &mdash;
-            that is holding the dotted notes, which is Pointing. A click that
-            moves is no longer something to check your timing against, so leave
-            this at nothing unless you know you want it.
-          </div>
-        </div>
-
-        <div class="metro-section-head">Practice drills</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Silent bars</div>
-          <div class="metro-control">
-            <button id="btnMetroGap" class="mini-btn" type="button" aria-pressed="false">Leave gaps</button>
-            <span class="metro-field">
-              <span class="metro-inline-label">Play</span>
-              <input id="metroGapPlay" class="metro-num" type="number" min="1" max="16"
-                     step="1" value="4" inputmode="numeric" aria-label="Bars played">
-              <span class="metro-inline-label">bars</span>
-            </span>
-            <span class="metro-field">
-              <span class="metro-inline-label">silent</span>
-              <input id="metroGapMute" class="metro-num" type="number" min="1" max="16"
-                     step="1" value="4" inputmode="numeric" aria-label="Bars silent">
-              <span class="metro-inline-label">bars</span>
-            </span>
-            <button id="btnMetroGapHide" class="mini-btn" type="button" aria-pressed="false">Hide the ring</button>
-          </div>
-          <div class="metro-help">
-            Plays for a few bars, then goes quiet for a few while you keep going.
-            The count carries on underneath, so when it comes back you find out
-            whether your tempo held.
-          </div>
-        </div>
-
-        <div class="metro-group">
-          <div class="bar-label">Tempo ramp</div>
-          <div class="metro-control">
-            <button id="btnMetroRamp" class="mini-btn" type="button" aria-pressed="false">Raise the tempo</button>
-            <span class="metro-field">
-              <span class="metro-inline-label">Every</span>
-              <input id="metroRampBars" class="metro-num" type="number" min="1" max="32"
-                     step="1" value="4" inputmode="numeric" aria-label="Bars between steps">
-              <span class="metro-inline-label">bars</span>
-            </span>
-            <span class="metro-field">
-              <span class="metro-inline-label">add</span>
-              <input id="metroRampStep" class="metro-num" type="number" min="1" max="20"
-                     step="1" value="2" inputmode="numeric" aria-label="Beats per minute added">
-              <span class="metro-inline-label">BPM</span>
-            </span>
-            <span class="metro-field">
-              <span class="metro-inline-label">up to</span>
-              <input id="metroRampMax" class="metro-num" type="number" min="30" max="240"
-                     step="1" value="120" inputmode="numeric" aria-label="Highest tempo">
-              <span class="metro-inline-label">BPM</span>
-            </span>
-          </div>
-          <div class="metro-help">
-            Raises the tempo a step at a time and stops at the top figure you set.
-            Start a tune slower than you can play it and let it creep up on you.
-          </div>
-        </div>
-
-        <div class="metro-section-head">Playing along</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Drone</div>
-          <div class="metro-control">
-            <button id="btnMetroDrone" class="mini-btn" type="button" aria-pressed="false">Play a drone</button>
-            <span class="metro-field">
-              <span class="metro-inline-label">Level</span>
-              <input id="metroDroneLevel" class="metro-range" type="range"
-                     min="0" max="30" step="1" value="10" aria-label="Drone level">
-              <div class="metro-val" id="metroDroneVal">10</div>
-            </span>
-          </div>
-          <div class="metro-help">
-            A quiet drone under the click, pitched from the Low A you set for the
-            microphone. Useful for tuning against. The bass note is too low for a
-            phone speaker, so use headphones to hear all of it.
-          </div>
-        </div>
-
-        <div class="metro-section-head">When you cannot hear it</div>
-
-        <div class="metro-group">
-          <div class="bar-label">Flash the screen</div>
-          <div class="metro-control">
-            <button id="btnMetroFlash" class="mini-btn" type="button" aria-pressed="false">Flash on beat one</button>
-          </div>
-          <div class="metro-help">
-            Flashes the whole panel on the first beat of the bar, for practising
-            where the click cannot be heard over the pipes.
-          </div>
-        </div>
-
-        <div class="metro-group" id="metroHapticsGroup">
-          <div class="bar-label">Buzz the phone</div>
-          <div class="metro-control">
-            <button id="btnMetroHaptics" class="mini-btn" type="button" aria-pressed="false">Buzz on beat one</button>
-          </div>
-          <div class="metro-help">
-            Buzzes the phone on the first beat of the bar.
-          </div>
-        </div>
-
-        <!-- An absence is worth explaining, in the place somebody would go
-             looking for it. -->
-        <div class="metro-group">
-          <div class="bar-label">Piobaireachd</div>
-          <div class="metro-help">
-            There is no piobaireachd setting. The ground of a piobaireachd is not
-            played in strict time, and a click would teach you the wrong thing.
-            Use the plain click for drilling the movements in the variations if
-            you want even fingers.
-          </div>
-        </div>
-
-      </div>
-    </div>
-
-    <div class="footnote metro-footnote">
+    <p class="footnote metro-footnote">
       Tap the dial or press Space to start &middot; tap Tap tempo four times along
       with a tune to set its speed by ear
+    </p>
+
+  </section>
+
+  <!-- ───────────────────────────── Settings view ─────────────────────────── -->
+  <section class="view" id="settingsView" hidden>
+
+    <header class="screen-head">
+      <h1 class="screen-title">Settings</h1>
+    </header>
+
+    <div class="panel">
+      <div class="label">Appearance</div>
+      <div class="segmented">
+        <button id="btnThemeLight" class="seg" type="button">Light</button>
+        <button id="btnThemeDark" class="seg" type="button">Dark</button>
+      </div>
     </div>
+
+    <div class="panel">
+      <div class="label">Microphone &amp; tuning</div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Microphone</div>
+          <div class="switch-sub" id="micStateLabel">Off</div>
+        </div>
+        <button class="switch js-listen" type="button" aria-pressed="false" aria-label="Microphone"><span class="switch-knob"></span></button>
+      </div>
+      <button id="btnCalibrate" class="tap-btn" type="button">Calibrate to your chanter</button>
+      <div class="stepper-row">
+        <div class="stepper-label">Low A</div>
+        <button class="step-btn js-ref-down" type="button" aria-label="Lower">&minus;</button>
+        <div class="stepper-value"><input class="num-input js-ref" type="text" inputmode="numeric" value="235" title="Click to type a frequency" aria-label="Low A reference frequency"><span>Hz</span></div>
+        <button class="step-btn js-ref-up" type="button" aria-label="Higher">+</button>
+      </div>
+      <p class="footnote footnote-left">Every note is measured from this pitch. A pipe chanter's Low A is usually 470&ndash;480&nbsp;Hz; a practice chanter about 235&ndash;240&nbsp;Hz.</p>
+    </div>
+
+    <div class="panel" id="settingsMetroPanels">
+      <div class="label">More tune types</div>
+      <div class="chip-row" id="metroPresetsMore"></div>
+      <p class="footnote footnote-left">The rest of the common types. Each one sets everything at once, the same way the row on the metronome does.</p>
+    </div>
+
+    <div class="panel">
+      <div class="label">The bar</div>
+      <div class="setting-title">Time signature</div>
+      <div class="chip-row" id="metroTimeSig">
+        <button class="chip" type="button" data-val="2/4">2/4</button>
+        <button class="chip" type="button" data-val="3/4">3/4</button>
+        <button class="chip" type="button" data-val="4/4">4/4</button>
+        <button class="chip" type="button" data-val="2/2">2/2</button>
+        <button class="chip" type="button" data-val="6/8">6/8</button>
+        <button class="chip" type="button" data-val="9/8">9/8</button>
+        <button class="chip" type="button" data-val="12/8">12/8</button>
+      </div>
+      <p class="footnote footnote-left">How many beats fall in a bar, and which note counts as one beat. The 6/8, 9/8 and 12/8 settings count dotted quarter notes, so 6/8 gives two clicks a bar rather than six.</p>
+      <div class="setting-title">Accents</div>
+      <div class="metro-accents" id="metroAccents"></div>
+      <p class="footnote footnote-left">Tap a beat to cycle it through strong, normal, soft and silent. A silent beat still sounds any extra clicks sitting inside it.</p>
+    </div>
+
+    <div class="panel">
+      <div class="label">The click</div>
+      <div class="chip-row" id="metroSound">
+        <button class="chip chip-grow" type="button" data-val="click">Click</button>
+        <button class="chip chip-grow" type="button" data-val="wood">Wood</button>
+        <button class="chip chip-grow" type="button" data-val="beep">Beep</button>
+      </div>
+      <p class="footnote footnote-left">Wood carries over a practice chanter. Beep carries over a full set of pipes.</p>
+      <div class="stepper-row">
+        <div class="stepper-label">Volume</div>
+        <input id="metroVolume" class="flex-range" type="range" min="0" max="100" step="1" value="80" aria-label="Click volume">
+        <div class="metro-val" id="metroVolumeVal">80</div>
+      </div>
+      <div class="setting-title">Extra clicks between beats</div>
+      <div class="chip-row" id="metroSubdivision">
+        <button class="chip" type="button" data-val="1">Off</button>
+        <button class="chip" type="button" data-val="2">2</button>
+        <button class="chip" type="button" data-val="3">3</button>
+        <button class="chip" type="button" data-val="4">4</button>
+        <button class="chip" type="button" data-val="6">6</button>
+      </div>
+      <p class="footnote footnote-left">Quieter clicks in the gaps between the beats. Leave it off while you are still learning to land on the beat.</p>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Just the beat</div>
+          <div class="switch-sub">Drops the extra clicks without forgetting them</div>
+        </div>
+        <button id="btnMetroPlainBeat" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Count-in</div>
+          <div class="switch-sub">One bar of clicks before the piece starts</div>
+        </div>
+        <button id="btnMetroCountIn" class="switch" type="button" aria-pressed="true"><span class="switch-knob"></span></button>
+      </div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Click</div>
+          <div class="switch-sub">Turn the sound off and keep the ring moving</div>
+        </div>
+        <button id="btnMetroClick" class="switch" type="button" aria-pressed="true"><span class="switch-knob"></span></button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Rhythm &amp; lift</div>
+      <div class="slider-block">
+        <div class="slider-head">
+          <div class="setting-title">Pointing</div>
+          <div class="metro-val" id="metroPointingVal">50</div>
+        </div>
+        <input id="metroPointing" class="flex-range" type="range" min="15" max="90" step="1" value="50" aria-label="Pointing">
+        <div class="slider-ends"><span>Snap</span><span>Round</span><span>Pointed</span></div>
+        <p class="footnote footnote-left">How unevenly a pair of notes is played. In the middle both notes are the same length &mdash; pipers call that round. To the right the first note gets longer and the second shorter and sharper, the dotted rhythm of a march, which sits around 75. To the left it flips into a short note snapping into a long one, the way a strathspey does.</p>
+      </div>
+      <div class="slider-block">
+        <div class="slider-head">
+          <div class="setting-title">Beat stretch</div>
+          <div class="metro-val" id="metroPulseVal">0</div>
+        </div>
+        <input id="metroPulse" class="flex-range" type="range" min="0" max="15" step="1" value="0" aria-label="Beat stretch">
+        <div class="slider-ends"><span>None</span><span></span><span>Strong</span></div>
+        <p class="footnote footnote-left">Lengthens the first beat and shortens the rest to pay for it, so the bar still takes exactly as long as it should. This is not what pipers mean by pulsing a strathspey &mdash; that is holding the dotted notes, which is Pointing. A click that moves is no longer something to check your timing against, so leave this at nothing unless you know you want it.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Practice drills</div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Silent bars</div>
+          <div class="switch-sub">The count carries on underneath the gaps</div>
+        </div>
+        <button id="btnMetroGap" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+      <div class="sub-settings" id="gapSettings" hidden>
+        <div class="stepper-row">
+          <div class="stepper-label">Play</div>
+          <input id="metroGapPlay" class="num-input num-input-wide" type="number" min="1" max="16" step="1" value="4" inputmode="numeric" aria-label="Bars played">
+          <div class="stepper-unit">bars</div>
+        </div>
+        <div class="stepper-row">
+          <div class="stepper-label">Silent</div>
+          <input id="metroGapMute" class="num-input num-input-wide" type="number" min="1" max="16" step="1" value="4" inputmode="numeric" aria-label="Bars silent">
+          <div class="stepper-unit">bars</div>
+        </div>
+        <div class="switch-row">
+          <div class="switch-text">
+            <div class="switch-title">Hide the ring</div>
+            <div class="switch-sub">No visual count through the silent bars either</div>
+          </div>
+          <button id="btnMetroGapHide" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+        </div>
+      </div>
+      <p class="footnote footnote-left">Plays for a few bars, then goes quiet for a few while you keep going. When it comes back you find out whether your tempo held.</p>
+      <div class="switch-row switch-row-top">
+        <div class="switch-text">
+          <div class="switch-title">Tempo ramp</div>
+          <div class="switch-sub">Start slow and let it creep up on you</div>
+        </div>
+        <button id="btnMetroRamp" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+      <div class="sub-settings" id="rampSettings" hidden>
+        <div class="stepper-row">
+          <div class="stepper-label">Every</div>
+          <input id="metroRampBars" class="num-input num-input-wide" type="number" min="1" max="32" step="1" value="4" inputmode="numeric" aria-label="Bars between steps">
+          <div class="stepper-unit">bars</div>
+        </div>
+        <div class="stepper-row">
+          <div class="stepper-label">Add</div>
+          <input id="metroRampStep" class="num-input num-input-wide" type="number" min="1" max="20" step="1" value="2" inputmode="numeric" aria-label="Beats per minute added">
+          <div class="stepper-unit">BPM</div>
+        </div>
+        <div class="stepper-row">
+          <div class="stepper-label">Up to</div>
+          <input id="metroRampMax" class="num-input num-input-wide" type="number" min="30" max="240" step="1" value="120" inputmode="numeric" aria-label="Highest tempo">
+          <div class="stepper-unit">BPM</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">Playing along</div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Drone</div>
+          <div class="switch-sub">Pitched from your Low A setting</div>
+        </div>
+        <button id="btnMetroDrone" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+      <div class="sub-settings" id="droneSettings" hidden>
+        <div class="stepper-row">
+          <div class="stepper-label">Level</div>
+          <input id="metroDroneLevel" class="flex-range" type="range" min="0" max="30" step="1" value="10" aria-label="Drone level">
+          <div class="metro-val" id="metroDroneVal">10</div>
+        </div>
+        <p class="footnote footnote-left">The bass note is too low for a phone speaker &mdash; use headphones to hear all of it.</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="label">When you can't hear the click</div>
+      <div class="switch-row">
+        <div class="switch-text">
+          <div class="switch-title">Flash on beat one</div>
+          <div class="switch-sub">Flashes the screen at the start of each bar</div>
+        </div>
+        <button id="btnMetroFlash" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+      <div class="switch-row" id="metroHapticsGroup">
+        <div class="switch-text">
+          <div class="switch-title">Buzz on beat one</div>
+          <div class="switch-sub">Vibrates the phone at the start of each bar</div>
+        </div>
+        <button id="btnMetroHaptics" class="switch" type="button" aria-pressed="false"><span class="switch-knob"></span></button>
+      </div>
+    </div>
+
+  </section>
 
   </div>
 
-  <div class="overlay" id="resultOverlay" style="display: none; z-index: 45;">
-    <div class="modal" style="padding: 36px; gap: 26px;">
+  <!-- ─────────────────────────────── Tab bar ─────────────────────────────── -->
+  <nav class="tab-bar">
+    <button id="tabCards" class="tab" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="14" height="17" rx="2"></rect><path d="M17 21H5a2 2 0 0 1-2-2V8"></path></svg>
+      <span>Cards</span>
+    </button>
+    <button id="tabPatterns" class="tab" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="17" r="3"></circle><path d="M10 17V4l9 2v10"></path><circle cx="16" cy="16" r="3"></circle></svg>
+      <span>Drill</span>
+    </button>
+    <button id="tabMetronome" class="tab" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3h6l4 18H5L9 3Z"></path><path d="M12 14 18 5"></path><circle cx="12" cy="15" r="1.4" fill="currentColor" stroke="none"></circle></svg>
+      <span>Beat</span>
+    </button>
+    <button id="tabSettings" class="tab" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"></path><circle cx="16" cy="7" r="2.2"></circle><circle cx="8" cy="17" r="2.2"></circle></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
 
-      <div class="modal-head">
-        <div class="modal-title">Round complete</div>
-        <div class="modal-step" id="resultTempo"></div>
-      </div>
+  <!-- ──────────────────────── Drill picker (full screen) ─────────────────── -->
+  <div class="sheet" id="pickerOverlay" hidden>
+    <div class="sheet-head">
+      <h2 class="sheet-title">Choose a drill</h2>
+      <button id="btnClosePicker" class="circle-btn circle-btn-sm" type="button" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="sheet-body" id="patternGroups"></div>
+  </div>
 
+  <!-- ─────────────────── Listening round result (full screen) ───────────── -->
+  <div class="sheet" id="resultOverlay" hidden>
+    <div class="sheet-head">
+      <h2 class="sheet-title">Round complete</h2>
+      <div class="label" id="resultTempo"></div>
+    </div>
+    <div class="sheet-body">
       <div class="score-row">
         <div class="score-big" id="scoreVal">0</div>
         <div class="score-total">/ 20</div>
-        <div class="score-line" id="resultLine"></div>
       </div>
-
-      <div style="display: flex; flex-direction: column; gap: 10px;">
-        <div class="bar-label">Every card</div>
-        <div class="result-chips" id="resultChips"></div>
-      </div>
-
-      <div class="missed-line" id="missedLine" style="display: none;"></div>
-
-      <div class="dialog-actions" style="justify-content: flex-end;">
-        <button id="btnExitGame" class="ghost-btn">Back to drill</button>
-        <button id="btnPlayAgain" class="dark-btn">Play again</button>
-      </div>
-
+      <div class="status-line" id="resultLine"></div>
+      <div class="label">Every card</div>
+      <div class="chip-row" id="resultChips"></div>
+      <p class="footnote footnote-left" id="missedLine" hidden></p>
+    </div>
+    <div class="sheet-actions">
+      <button id="btnExitGame" class="pill-btn" type="button">Back to drill</button>
+      <button id="btnPlayAgain" class="pill-btn pill-btn-dark" type="button">Play again</button>
     </div>
   </div>
 
-  <div class="overlay" id="dialogOverlay" style="display: none; z-index: 40;">
-    <div class="modal">
-
-      <div class="modal-head">
-        <div class="modal-title" id="dialogTitle">Is the mic hearing you?</div>
-        <div class="modal-step" id="dialogStepLabel">Step 1 of 3</div>
-      </div>
-
-      <div class="modal-body" id="dialogBody"></div>
+  <!-- ────────────────────── Mic setup dialog (full screen) ───────────────── -->
+  <div class="sheet" id="dialogOverlay" hidden>
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="dialogTitle">Is the mic hearing you?</h2>
+      <div class="label" id="dialogStepLabel">Step 1 of 3</div>
+    </div>
+    <div class="sheet-body">
+      <p class="sheet-text" id="dialogBody"></p>
 
       <div class="level-row">
-        <div class="bar-label" style="width: 46px;">Input</div>
+        <div class="label">Input</div>
         <div class="level-track"><div class="level-fill" id="levelFill"></div></div>
         <div class="level-label" id="levelLabel">Silent</div>
       </div>
 
-      <div class="tune-panel" id="tunePanel" style="display: none;">
+      <div class="panel tune-panel" id="tunePanel" hidden>
         <div class="tune-col">
-          <div class="bar-label">Heard</div>
+          <div class="label">Heard</div>
           <div class="tune-value" id="calLabel">&mdash;</div>
         </div>
-        <div class="tune-col" style="text-align: right;">
-          <div class="bar-label">Current setting</div>
-          <div class="tune-value" id="dialogRefA" style="color: #6f605a;">235 Hz</div>
+        <div class="tune-col tune-col-right">
+          <div class="label">Current setting</div>
+          <div class="tune-value tune-value-mut" id="dialogRefA">235 Hz</div>
         </div>
       </div>
 
-      <div class="scale-grid" id="scaleGrid" style="display: none;"></div>
-
-      <div class="dialog-actions" style="padding-top: 4px;">
-        <button id="btnDialogCancel" class="text-btn">Turn mic off</button>
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <button id="btnDialogSkip" class="ghost-btn">Skip</button>
-          <button id="btnDialogNext" class="dark-btn">Sounds right</button>
-        </div>
+      <div class="scale-grid" id="scaleGrid" hidden></div>
+    </div>
+    <div class="sheet-actions sheet-actions-split">
+      <button id="btnDialogCancel" class="text-btn" type="button">Turn mic off</button>
+      <div class="sheet-actions">
+        <button id="btnDialogSkip" class="pill-btn" type="button">Skip</button>
+        <button id="btnDialogNext" class="pill-btn pill-btn-dark" type="button">Sounds right</button>
       </div>
-
     </div>
   </div>
 
