@@ -1376,6 +1376,51 @@
     }
   }
 
+  // ── screen wake lock ──
+
+  // Where the browser offers one. Everything this app runs to a clock is
+  // watched with both hands on the chanter — the metronome on a stand, a
+  // scored run, cards turning themselves over — and a screen that dims part
+  // way through is what makes all of it useless. So the lock is held while
+  // anything is running and dropped the moment nothing is.
+  let wakeLock = null;
+  let wakeAsking = false;
+
+  function wakeNeeded() {
+    return state.playing || state.pPlaying || freeMetroOn() ||
+      !!(metro && metro.isRunning());
+  }
+
+  function syncWake() {
+    if (wakeNeeded()) acquireWake();
+    else releaseWake();
+  }
+
+  function acquireWake() {
+    // A hidden page is not allowed to hold one, so there is no point asking.
+    if (!navigator.wakeLock || wakeLock || wakeAsking || document.hidden) return;
+    wakeAsking = true;
+    try {
+      navigator.wakeLock.request("screen").then((lock) => {
+        wakeAsking = false;
+        // Whatever asked for it may have stopped while the request was in
+        // flight, and a lock nobody wants goes straight back.
+        if (!wakeNeeded()) { try { lock.release(); } catch (err) { /* gone */ } return; }
+        wakeLock = lock;
+        // The browser drops the lock whenever the page hides, so forget it
+        // then and ask for a fresh one on the way back.
+        lock.addEventListener("release", () => { if (wakeLock === lock) wakeLock = null; });
+      }).catch(() => { wakeAsking = false; wakeLock = null; });
+    } catch (err) { wakeAsking = false; wakeLock = null; }
+  }
+
+  function releaseWake() {
+    if (!wakeLock) return;
+    const lock = wakeLock;
+    wakeLock = null;
+    try { lock.release(); } catch (err) { /* already gone */ }
+  }
+
   // ── flashcards ──
 
   // Green flash and red note both live on cardResult, so they always clear
@@ -2142,7 +2187,6 @@
   let metroHandTurns = 0;    // whole turns added so the hand never rotates back
   let metroRingHidden = false;
   let metroFlashTimer = null;
-  let metroWakeLock = null;
   let metroLastSub = 0;      // subdivision to come back to after "just the beat"
 
   const HAS_VIBRATE = typeof navigator !== "undefined" && typeof navigator.vibrate === "function";
@@ -2398,7 +2442,6 @@
   function metroOnStop() {
     if (metroRaf) { cancelAnimationFrame(metroRaf); metroRaf = null; }
     clearTimeout(metroFlashTimer);
-    releaseMetroWake();
     if (dom.flashLayer) dom.flashLayer.classList.remove("is-on");
     if (dom.metroRingWrap) {
       dom.metroRingWrap.style.visibility = "";
@@ -2406,26 +2449,6 @@
     }
     metroRingHidden = false;
     render();
-  }
-
-  // Screen Wake Lock, where it exists: a metronome on a music stand is being
-  // watched, not touched, and the screen dimming mid-tune is the one thing that
-  // makes the ring useless.
-  function acquireMetroWake() {
-    if (!navigator.wakeLock || metroWakeLock) return;
-    try {
-      navigator.wakeLock.request("screen").then((lock) => {
-        if (!metro || !metro.isRunning()) { try { lock.release(); } catch (err) { /* gone */ } return; }
-        metroWakeLock = lock;
-      }).catch(() => { metroWakeLock = null; });
-    } catch (err) { metroWakeLock = null; }
-  }
-
-  function releaseMetroWake() {
-    if (!metroWakeLock) return;
-    const lock = metroWakeLock;
-    metroWakeLock = null;
-    try { lock.release(); } catch (err) { /* already released */ }
   }
 
   function startMetronome() {
@@ -2437,14 +2460,13 @@
     metroHandTurns = 0;
     metroActivePip = -1;
     metroPosText = "";
-    acquireMetroWake();
     if (!metroRaf) metroRaf = requestAnimationFrame(metroFrame);
     render();
   }
 
   function stopMetronome() {
     if (!metro || !metro.isRunning()) return;
-    metro.stop();   // onStop tidies up the loop, the wake lock and the ring
+    metro.stop();   // onStop tidies up the loop, the ring and the wake lock
   }
 
   function toggleMetronome() {
@@ -2873,6 +2895,10 @@
         : s.checkIdx >= NOTES.length ? "Start practising" : "Done checking";
       dom.btnDialogNext.disabled = s.dialogStep === 2 && !s.calHz;
     }
+
+    // Every clock in the app starts and stops through a render, so this is the
+    // one place that has to ask whether the screen still needs holding up.
+    syncWake();
   }
 
   function dialogNext() {
@@ -3220,13 +3246,13 @@
       saveMetro();
       render();
     });
-
-    document.addEventListener("visibilitychange", () => {
-      // The browser drops a screen wake lock whenever the page is hidden, so a
-      // metronome still running when you come back has to ask for another one.
-      if (!document.hidden && metro.isRunning()) acquireMetroWake();
-    });
   }
+
+  // The browser takes the wake lock back whenever the page is hidden, so
+  // anything still running when you come back has to ask for another one.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncWake();
+  });
 
   window.addEventListener("keydown", (e) => {
     // A key event dispatched at the document rather than an element has no
