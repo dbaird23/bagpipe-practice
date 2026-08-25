@@ -431,6 +431,9 @@
     score: 0,
     results: [],
     cardResult: null,
+    // The note actually played when it was the wrong one, so the card can
+    // show it beside the note it asked for.
+    heardWrong: null,
     dialogStep: 0,
     level: 0,
     calHz: 0,
@@ -558,6 +561,11 @@
     card: el("card"),
     cardInner: el("cardInner"),
     cardFront: el("cardFront"),
+    cardBack: el("cardBack"),
+    heardNote: el("heardNote"),
+    heardLedger: el("heardLedger"),
+    heardHead: el("heardHead"),
+    heardStem: el("heardStem"),
     staffSvg: el("staffSvg"),
     chanterImg: el("chanterImg"),
     tabFaceStaff: el("tabFaceStaff"),
@@ -1370,6 +1378,13 @@
 
   // ── flashcards ──
 
+  // Green flash and red note both live on cardResult, so they always clear
+  // together — a card never opens still wearing the last one's verdict.
+  function clearResult() {
+    state.cardResult = null;
+    state.heardWrong = null;
+  }
+
   async function startGame() {
     if (!state.listening) {
       await startListening();
@@ -1390,7 +1405,7 @@
     state.gameIdx = 0;
     state.score = 0;
     state.results = [];
-    state.cardResult = null;
+    clearResult();
     state.flipped = false;
     state.playing = true;
     state.beat = 0;
@@ -1412,7 +1427,7 @@
     state.mode = "practice";
     state.playing = false;
     state.beat = 0;
-    state.cardResult = null;
+    clearResult();
     state.flipped = false;
     render();
   }
@@ -1436,7 +1451,7 @@
           stableName = null; stableCount = 0;
           state.beat = 1;
           state.gameIdx++;
-          state.cardResult = null;
+          clearResult();
         } else {
           tick(next === 1);
           state.beat = next;
@@ -1490,6 +1505,7 @@
   function swapCard(wasFlipped, step) {
     const dir = step || 1;
     const go = () => {
+      clearResult();
       const i = state.idx + dir;
       if (i >= state.order.length) {
         state.idx = 0;
@@ -1670,8 +1686,10 @@
       scored = true;
       state.score++;
       state.cardResult = "right";
+      state.heardWrong = null;
     } else {
       state.cardResult = "wrong";
+      state.heardWrong = name;
     }
     render();
   }
@@ -1683,20 +1701,33 @@
     if (name === target.name) {
       judgeLock = true;
       state.judged = "right";
+      // Green goes on before the card turns, and both faces carry it, so the
+      // flash still reads while the answer side comes round.
+      state.cardResult = "right";
+      state.heardWrong = null;
       state.flipped = true;
       render();
       setTimeout(() => {
         judgeLock = false;
         stableName = null; stableCount = 0;
         state.judged = null;
+        clearResult();
         render();
         advance();
       }, 1000);
     } else {
       state.judged = "wrong";
+      state.cardResult = "wrong";
+      state.heardWrong = name;
       render();
       clearTimeout(wrongTimer);
-      wrongTimer = setTimeout(() => { state.judged = null; render(); }, 700);
+      // Longer than the old flash: the red note is there to be read, not just
+      // noticed.
+      wrongTimer = setTimeout(() => {
+        state.judged = null;
+        clearResult();
+        render();
+      }, 1200);
     }
   }
 
@@ -2699,6 +2730,22 @@
     dom.noteHead.setAttribute("cy", note.y);
     dom.noteHead.setAttribute("transform", "rotate(-22 170 " + note.y + ")");
     dom.noteStem.setAttribute("y", note.y);
+
+    // A wrong note draws itself in red to the right of the one being asked
+    // for, so the two can be read side by side. Only on the staff face — the
+    // fingering face has nowhere to put it, and says it in words instead.
+    const wrong = s.cardResult === "wrong" && s.heardWrong
+      ? NOTES.find((n) => n.name === s.heardWrong)
+      : null;
+    if (dom.heardNote) {
+      dom.heardNote.style.display = wrong && !fingering ? "" : "none";
+      if (wrong) {
+        dom.heardLedger.style.display = wrong.ledger ? "" : "none";
+        dom.heardHead.setAttribute("cy", wrong.y);
+        dom.heardHead.setAttribute("transform", "rotate(-22 240 " + wrong.y + ")");
+        dom.heardStem.setAttribute("y", wrong.y);
+      }
+    }
     dom.noteName.textContent = note.name;
     dom.noteHint.textContent = note.hint;
 
@@ -2708,6 +2755,8 @@
     dom.card.style.pointerEvents = (s.dialogStep > 0 || s.mode === "result") ? "none" : "";
     setOn(dom.cardFront, s.cardResult === "right", "is-right");
     setOn(dom.cardFront, s.cardResult === "wrong", "is-wrong");
+    setOn(dom.cardBack, s.cardResult === "right", "is-right");
+    setOn(dom.cardBack, s.cardResult === "wrong", "is-wrong");
     if (dom.cardTapHint) dom.cardTapHint.textContent = s.flipped ? "" : "tap to reveal";
 
     // The card carries the same running commentary the drill page does, so the
@@ -2716,7 +2765,8 @@
       dom.cardStatus.textContent = s.micError
         ? "The microphone is blocked — allow it in your browser settings, then try again."
         : s.cardResult === "right" ? "Yes — " + note.name + "."
-        : s.cardResult === "wrong" ? "Not that one — keep trying."
+        : s.cardResult === "wrong"
+          ? (s.heardWrong ? "That's " + s.heardWrong + " — keep trying." : "Not that one — keep trying.")
         : s.flipped ? "It's " + note.name + " · " + note.hint + "."
         : s.listening
           ? (fingering ? "Play the note this fingering makes." : "Play the note you see.")

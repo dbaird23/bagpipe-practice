@@ -580,8 +580,19 @@ input[type="range"][disabled] { opacity: 0.4; }
   transform: rotateY(180deg);
 }
 
-.card-front.is-right { border-color: var(--good); background: var(--tint-good); }
-.card-front.is-wrong { border-color: var(--bad); background: var(--tint-bad); }
+/* Both faces take the colour, so a right answer still reads green through the
+   flip to the answer side. */
+.card-face.is-right { border-color: var(--good); background: var(--tint-good); }
+.card-face.is-wrong { border-color: var(--bad); background: var(--tint-bad); }
+.card-face.is-right { animation: cardFlashGood 620ms ease-out; }
+
+@keyframes cardFlashGood {
+  /* Peaks at the deeper tint rather than solid green: the note on the staff is
+     green too, and would vanish against a full-strength wash. */
+  0% { border-color: var(--good); background: var(--tint-good-bd); }
+  25% { border-color: var(--good); background: var(--tint-good-bd); }
+  100% { border-color: var(--good); background: var(--tint-good); }
+}
 
 #staffSvg { width: 100%; height: auto; overflow: visible; display: block; }
 .staff-lines { stroke: var(--staff); fill: none; }
@@ -590,9 +601,9 @@ input[type="range"][disabled] { opacity: 0.4; }
 .card-front.is-right #ledgerLine,
 .card-front.is-right #noteHead,
 .card-front.is-right #noteStem { stroke: var(--good); fill: var(--good); }
-.card-front.is-wrong #ledgerLine,
-.card-front.is-wrong #noteHead,
-.card-front.is-wrong #noteStem { stroke: var(--bad); fill: var(--bad); }
+/* On a wrong answer the asked-for note stays in ink and the note that was
+   actually played is the red one, so there is no doubt which is which. */
+#heardLedger, #heardHead, #heardStem { stroke: var(--bad); fill: var(--bad); }
 
 .chanter-img {
   width: 100px;
@@ -1082,4 +1093,5 @@ html[data-theme="dark"] .chanter-img { mix-blend-mode: screen; filter: invert(1)
 @media (prefers-reduced-motion: reduce) {
   * { transition-duration: 1ms !important; }
   .card-inner { transition: none; }
+  .card-face.is-right { animation: none; }
 }

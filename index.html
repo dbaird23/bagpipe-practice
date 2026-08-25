@@ -60,11 +60,18 @@
             <line id="ledgerLine" x1="152" y1="8" x2="188" y2="8" stroke-width="1.4" style="display: none;"></line>
             <ellipse id="noteHead" cx="170" cy="50" rx="10.5" ry="7.4"></ellipse>
             <rect id="noteStem" x="160" y="50" width="2.2" height="46"></rect>
+            <!-- The note actually played, drawn in red to the right of the one
+                 being asked for, so a wrong answer shows what came out. -->
+            <g id="heardNote" style="display: none;">
+              <line id="heardLedger" x1="222" y1="8" x2="258" y2="8" stroke-width="1.4"></line>
+              <ellipse id="heardHead" cx="240" cy="50" rx="10.5" ry="7.4"></ellipse>
+              <rect id="heardStem" x="230" y="50" width="2.2" height="46"></rect>
+            </g>
           </svg>
           <div class="card-tap-hint" id="cardTapHint">tap to reveal</div>
         </div>
 
-        <div class="card-face card-back">
+        <div class="card-face card-back" id="cardBack">
           <div class="note-name" id="noteName">Low A</div>
           <div class="note-hint" id="noteHint">2nd space</div>
         </div>
