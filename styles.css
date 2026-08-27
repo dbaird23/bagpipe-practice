@@ -348,6 +348,17 @@ button, .tab, .seg, .chip, .label, .beat-dots { -webkit-user-select: none; user-
   padding: 6px 0 2px;
 }
 
+/* Test mode holds the middle with a pill either side of it. The pills share
+   what is left over so all three still fit across a phone. */
+.transport-flanked { gap: 10px; }
+.transport-flanked > .pill-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
 .step-btn {
   width: 44px;
   height: 44px;
