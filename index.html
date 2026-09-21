@@ -127,6 +127,10 @@
     </div>
 
     <div class="panel custom-builder" id="customBuilder" hidden>
+      <div class="sig-row">
+        <div class="label">Time</div>
+        <div class="sig-chips" id="customSig"></div>
+      </div>
       <div class="panel-head">
         <div class="label">Build note by note</div>
         <div class="segmented segmented-sm">
@@ -134,9 +138,11 @@
           <button id="tabBuildGraces" class="seg" type="button">Gracenotes</button>
         </div>
       </div>
+      <div class="dur-row" id="customDurs"></div>
       <div class="note-grid" id="customNotes"></div>
       <div class="note-grid" id="customGraces" hidden></div>
-      <div class="build-hint" id="graceBuildHint"></div>
+      <div class="build-hint" id="noteBuildHint"></div>
+      <div class="build-hint" id="graceBuildHint" hidden></div>
       <div class="name-row">
         <input id="customName" class="text-input" type="text" maxlength="40" placeholder="Name this pattern">
         <button id="btnCustomSave" class="pill-btn pill-btn-dark" type="button">Save</button>

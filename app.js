@@ -55,6 +55,101 @@
   // between its two Low G strikes, and a doubling repeats its own note.
   const GRACE_CHOICES = NOTES.map((n, i) => i);
 
+  // ── Note lengths ──
+  // How long a melody note is held, counted in quarter notes — which is the
+  // unit the names below already speak in, and which stays put whatever the
+  // time signature does to the beat. Pipe music leans on the dotted pairs as
+  // heavily as the plain ones, so both are here. A sixteenth is the shortest
+  // of them, which makes a quarter of a quarter the grid the rest land on.
+  const DURATIONS = [
+    { d: 0.25, name: "Sixteenth" },
+    { d: 0.5, name: "Eighth" },
+    { d: 0.75, name: "Dotted eighth" },
+    { d: 1, name: "Quarter" },
+    { d: 1.5, name: "Dotted quarter" },
+    { d: 2, name: "Half" },
+    { d: 4, name: "Whole" }
+  ];
+  const DEFAULT_DUR = 1;
+  const GRID_Q = 0.25;   // the shortest note, and so the clock's own tick
+
+  // ── Time signatures ──
+  // The beat is what you count and what the click sounds: a quarter in the
+  // simple meters, a dotted quarter in the compound ones, a half in cut time.
+  // beatQ is how many quarter notes that beat lasts, which is what ties the
+  // signature to the lengths above.
+  //
+  // Free is no bar to count, no bar lines, a plain quarter-note beat. The
+  // built-in patterns are runs rather than tunes and stay there, and so does
+  // anything saved before signatures existed. A pattern you build yourself
+  // starts in 4/4, which is what most of what you would write out is in.
+  const SIGNATURES = [
+    { id: "free", label: "Free", top: 0, bottom: 0, beats: 4, beatQ: 1 },
+    { id: "2-4", label: "2/4", top: 2, bottom: 4, beats: 2, beatQ: 1 },
+    { id: "3-4", label: "3/4", top: 3, bottom: 4, beats: 3, beatQ: 1 },
+    { id: "4-4", label: "4/4", top: 4, bottom: 4, beats: 4, beatQ: 1 },
+    { id: "2-2", label: "2/2", top: 2, bottom: 2, beats: 2, beatQ: 2 },
+    { id: "6-8", label: "6/8", top: 6, bottom: 8, beats: 2, beatQ: 1.5 },
+    { id: "9-8", label: "9/8", top: 9, bottom: 8, beats: 3, beatQ: 1.5 },
+    { id: "12-8", label: "12/8", top: 12, bottom: 8, beats: 4, beatQ: 1.5 }
+  ];
+  const FREE_SIG = SIGNATURES[0];
+  const DEFAULT_SIG = "4-4";
+  const sigById = (id) => SIGNATURES.find((x) => x.id === id) || FREE_SIG;
+  // quarter notes to the bar
+  const barQ = (sig) => sig.beats * sig.beatQ;
+
+  // A step with no length on it is a quarter note — one to a beat, which is
+  // what every built-in pattern is and what everything saved before lengths
+  // existed was played as.
+  function durOf(st) {
+    const d = st && st.d;
+    return DURATIONS.some((x) => x.d === d) ? d : DEFAULT_DUR;
+  }
+
+  function durName(d) {
+    const v = DURATIONS.find((x) => x.d === d);
+    return v ? v.name.toLowerCase() : "quarter";
+  }
+
+  const BEAT_WORDS = [
+    [0.25, "a quarter of a beat"],
+    [1 / 3, "a third of a beat"],
+    [0.5, "half a beat"],
+    [2 / 3, "two thirds of a beat"],
+    [0.75, "three quarters of a beat"],
+    [1, "one beat"],
+    [1.5, "a beat and a half"],
+    [2, "two beats"],
+    [3, "three beats"],
+    [4, "four beats"]
+  ];
+
+  // A length said out loud, in beats of whatever is being counted — so in 6/8
+  // an eighth is a third of the beat, which is how a 6/8 is counted. Where a
+  // length works out to no share worth naming, there is nothing useful to say
+  // and this says nothing.
+  function durSay(d) {
+    const b = d / currentSig().beatQ;
+    const hit = BEAT_WORDS.find((w) => Math.abs(w[0] - b) < 1e-6);
+    return hit ? hit[1] : "";
+  }
+
+  // ", held for two beats", or nothing at all
+  function heldFor(d) {
+    const say = durSay(d);
+    return say ? ", held for " + say : "";
+  }
+
+  // Where each note falls, counted in beats from the first, and how many beats
+  // the whole pattern lasts.
+  function onsetsOf(sq) {
+    const at = [];
+    let t = 0;
+    sq.forEach((st) => { at.push(t); t += durOf(st); });
+    return { at: at, total: t };
+  }
+
   const plain = (x) => ({ n: x, g: [] });
   // High G gracenote to X, then D gracenote on X — or the next note up once X
   // has reached D, since the second gracenote must sit above the note.
@@ -269,12 +364,12 @@
     light: {
       ink: "#2a2120", good: "#7d9163", bad: "#a85a4e", early: "#6f8fa8",
       late: "#c08a3e", dim: "#cabbb4", missed: "#ddd0ca", halo: "#f5efec",
-      staff: "#e0d5cf", clef: "#dbd0ca", acc: "#997373", labelPend: "#c6b7b0"
+      staff: "#e0d5cf", clef: "#dbd0ca", bar: "#b3a099", acc: "#997373", labelPend: "#c6b7b0"
     },
     dark: {
       ink: "#f0e7e2", good: "#9db184", bad: "#cd8375", early: "#8fb0c8",
       late: "#d8a760", dim: "#5f4f48", missed: "#4a3d38", halo: "#332a27",
-      staff: "#40342e", clef: "#40342e", acc: "#c49a9a", labelPend: "#6a5952"
+      staff: "#40342e", clef: "#40342e", bar: "#7a675f", acc: "#c49a9a", labelPend: "#6a5952"
     }
   };
   const T = () => THEMES[state.theme] || THEMES.light;
@@ -313,21 +408,22 @@
 
   const validNote = (n) => Number.isInteger(n) && n >= 0 && n < NOTES.length;
 
-  // Steps are stored as {n, g}. Patterns saved before gracenotes existed are
-  // plain note numbers, so those are accepted and lifted into the new shape.
+  // Steps are stored as {n, g, d}. Patterns saved before gracenotes existed are
+  // plain note numbers, and ones saved before lengths existed carry no d at
+  // all — both are accepted and lifted into the current shape.
   function normSteps(arr) {
     if (!Array.isArray(arr)) return [];
     const out = [];
     arr.forEach((e) => {
-      if (validNote(e)) { out.push({ n: e, g: [] }); return; }
+      if (validNote(e)) { out.push({ n: e, g: [], d: DEFAULT_DUR }); return; }
       if (!e || !validNote(e.n)) return;
       const g = Array.isArray(e.g) ? e.g.filter(validNote) : [];
-      out.push({ n: e.n, g: g });
+      out.push({ n: e.n, g: g, d: durOf(e) });
     });
     return out;
   }
 
-  const cloneSteps = (arr) => arr.map((st) => ({ n: st.n, g: st.g.slice() }));
+  const cloneSteps = (arr) => arr.map((st) => ({ n: st.n, g: st.g.slice(), d: durOf(st) }));
 
   function loadSaved() {
     try {
@@ -336,7 +432,7 @@
       // keep only well-formed entries — a corrupt store shouldn't break the app
       return arr
         .filter((s) => s && typeof s.id === "string" && typeof s.name === "string" && Array.isArray(s.seq))
-        .map((s) => ({ id: s.id, name: s.name, seq: normSteps(s.seq) }));
+        .map((s) => ({ id: s.id, name: s.name, seq: normSteps(s.seq), sig: sigById(s.sig).id }));
     } catch (err) { return []; }
   }
 
@@ -442,6 +538,10 @@
     theme: "light",
     pickerOpen: false,
     buildGraces: false,
+    // The length the next note tapped into the builder is given.
+    buildLen: DEFAULT_DUR,
+    // and the time signature the pattern being built is in
+    customSig: DEFAULT_SIG,
     cardFace: "staff",
     patternId: "scale",
     custom: [],
@@ -519,7 +619,7 @@
   let demoRestartTimer = null;
   let demoStart = 0;    // audio-clock time the first pass began
   let demoNextAt = 0;   // audio-clock time the next pass should begin
-  let demoBeat = 1;     // seconds a note lasts, fixed for the session
+  let demoQuarter = 1;  // seconds a quarter note lasts, fixed for the pass
   let demoCycles = 0;
   let deleteArmed = false;
   let deleteTimer = null;
@@ -584,8 +684,11 @@
     patternName: el("patternName"),
     streakVal: el("streakVal"),
     customBuilder: el("customBuilder"),
+    customSig: el("customSig"),
+    customDurs: el("customDurs"),
     customNotes: el("customNotes"),
     customGraces: el("customGraces"),
+    noteBuildHint: el("noteBuildHint"),
     graceBuildHint: el("graceBuildHint"),
     btnCustomUndo: el("btnCustomUndo"),
     btnCustomClear: el("btnCustomClear"),
@@ -705,6 +808,15 @@
     return savedById(state.patternId.slice(SAVED_PREFIX.length));
   }
 
+  // The signature the selected pattern is in. Only patterns of your own carry
+  // one; the built-in drills are runs rather than tunes and stay free.
+  function currentSig() {
+    const sv = currentSaved();
+    if (sv) return sigById(sv.sig);
+    if (state.patternId === "custom") return sigById(state.customSig);
+    return FREE_SIG;
+  }
+
   function currentPattern() {
     const s = currentSaved();
     if (s) return { id: state.patternId, group: "Saved", label: s.name, name: s.name, seq: "", isSaved: true };
@@ -727,6 +839,16 @@
   }
 
   function seq() { return steps().map((st) => st.n); }
+
+  function onsets() { return onsetsOf(steps()); }
+
+  // The tempo is set in beats, and the beat is whatever the signature counts —
+  // a dotted quarter in 6/8, a half in cut time. Note lengths are in quarter
+  // notes, so this is what turns one into the other.
+  function quarterMs() { return beatMs() / currentSig().beatQ; }
+
+  // How long the note at i is held, in milliseconds at the current tempo.
+  function stepMs(i) { return durOf(steps()[i]) * quarterMs(); }
 
   function gracesAt(i) {
     const st = steps()[i];
@@ -755,11 +877,12 @@
   // Lay one pass of the pattern onto the running oscillator, starting at the
   // given audio-clock time. Gracenotes take their time from the front of the
   // note, so the beat lands on the first sound of a movement.
-  function scheduleCycle(startAt, sq, beat) {
+  function scheduleCycle(startAt, sq, qs) {
+    const o = onsetsOf(sq);
     sq.forEach((st, i) => {
       const graces = st.g || [];
-      const gd = Math.min(0.038, beat / (graces.length + 2));
-      let at = startAt + i * beat;
+      const gd = Math.min(0.038, (durOf(st) * qs) / (graces.length + 2));
+      let at = startAt + o.at[i] * qs;
       graces.forEach((gi) => {
         demoOsc.frequency.setValueAtTime(noteHz(gi), at);
         at += gd;
@@ -774,20 +897,25 @@
     if (!state.demoing || !demoOsc) return;
     const sq = steps();
     if (!sq.length) { stopDemo(); return; }
-    const total = sq.length * demoBeat;
+    const o = onsetsOf(sq);
+    const total = o.total * demoQuarter;
 
     // The highlight follows the ear, not the audio clock, so over headphones it
     // does not run ahead of the note you are hearing.
     const elapsed = ac.currentTime - demoStart - lagMs() / 1000;
     if (elapsed >= 0) {
-      const idx = Math.min(sq.length - 1, Math.floor((elapsed % total) / demoBeat));
+      // the last note whose start has gone by — notes are no longer all the
+      // same length, so the position cannot be divided out
+      const pos = (elapsed % total) / demoQuarter;
+      let idx = 0;
+      for (let i = 0; i < sq.length; i++) { if (o.at[i] <= pos + 1e-6) idx = i; }
       if (idx !== state.demoIdx) { state.demoIdx = idx; render(); }
     }
 
     while (demoNextAt < ac.currentTime + DEMO_LOOKAHEAD) {
       // Loop off, or switched off mid-pass: ride out the pass already scheduled.
       if (demoCycles > 0 && !state.loop) { finishDemoAt(demoNextAt); return; }
-      scheduleCycle(demoNextAt, sq, demoBeat);
+      scheduleCycle(demoNextAt, sq, demoQuarter);
       demoNextAt += total;
       demoCycles++;
     }
@@ -817,7 +945,7 @@
     let ctx;
     try { ctx = audio(); } catch (err) { return; }
 
-    demoBeat = 60 / state.bpm;
+    demoQuarter = 60 / state.bpm / currentSig().beatQ;
     demoStart = ctx.currentTime + 0.12;
     demoNextAt = demoStart;
     demoCycles = 0;
@@ -906,9 +1034,10 @@
     freeMetro = window.PipeMetronome.create({
       getContext: () => audio(),
       onStop: () => render(),
-      // Even clicks, one a beat, from the first one: this page has no bar to
-      // count, so accenting a downbeat here would be inventing one. The bar,
-      // the subdivisions and the rest of it are what the metronome tab is for.
+      // Even clicks, one a beat: with no time signature on the pattern there
+      // is no bar to count, and accenting a downbeat here would be inventing
+      // one. Give the pattern a signature and the bar comes with it, below.
+      // The subdivisions and the rest of it are what the metronome tab is for.
       config: {
         bpm: state.bpm,
         beatsPerBar: 4,
@@ -925,6 +1054,21 @@
     return !!freeMetro && freeMetro.isRunning();
   }
 
+  // The click follows the tempo on this page, and the volume set on the
+  // metronome tab — it is the same click, so it answers to the same slider.
+  // It also follows the pattern's own bar, once the pattern has one.
+  function pushFreeMetroConfig() {
+    if (!freeMetro) return;
+    const sig = currentSig();
+    const bar = sig === FREE_SIG ? 4 : sig.beats;
+    freeMetro.setConfig({
+      bpm: state.bpm,
+      volume: state.metro.volume,
+      beatsPerBar: bar,
+      accents: new Array(bar).fill(2).map((v, i) => (sig === FREE_SIG || i ? v : 3))
+    });
+  }
+
   function startFreeMetro() {
     const m = freeMetroEngine();
     if (!m || m.isRunning()) return;
@@ -933,9 +1077,7 @@
     clearTimeout(runTimer);
     stopPatternClock();
     state.pPlaying = false;
-    // The click follows the tempo on this page, and the volume set on the
-    // metronome tab — it is the same click, so it answers to the same slider.
-    m.setConfig({ bpm: state.bpm, volume: state.metro.volume });
+    pushFreeMetroConfig();
     // start() builds the AudioContext, which iOS only hands over inside a
     // gesture; this is only ever reached from the button.
     m.start();
@@ -993,11 +1135,14 @@
     if (existing) {
       existing.seq = cloneSteps(state.custom);
       existing.name = name;
+      existing.sig = state.customSig;
       id = existing.id;
       saveHint = "Updated";
     } else {
       id = newId();
-      state.saved = [{ id: id, name: name, seq: cloneSteps(state.custom) }].concat(state.saved);
+      state.saved = [{
+        id: id, name: name, seq: cloneSteps(state.custom), sig: state.customSig
+      }].concat(state.saved);
       saveHint = "Saved";
     }
     saveSaved();
@@ -1013,12 +1158,15 @@
     const s = currentSaved();
     if (!s) return;
     state.custom = cloneSteps(s.seq);
+    state.customSig = sigById(s.sig).id;
+    // pick the pen up where the pattern left off
+    state.buildLen = durOf(state.custom[state.custom.length - 1]);
     dom.customName.value = s.name;
     pickPattern("custom");
   }
 
   function addCustomNote(i) {
-    state.custom = state.custom.concat([{ n: i, g: [] }]);
+    state.custom = state.custom.concat([{ n: i, g: [], d: state.buildLen }]);
     resetRun();
   }
 
@@ -1033,6 +1181,18 @@
   }
 
   // Undo reverses the last tap, whether that was a gracenote or a note.
+  // Changing the signature re-bars, re-beams and re-times the pattern, so
+  // whatever was part-way through has to start again.
+  function setCustomSig(id) {
+    if (state.customSig === id) return;
+    stopDemo();
+    stopPatternClock();
+    state.customSig = id;
+    state.pPlaying = false;
+    if (freeMetroOn()) pushFreeMetroConfig();   // the click picks up the new bar
+    resetRun();
+  }
+
   function undoCustom() {
     if (!state.custom.length) return;
     const out = cloneSteps(state.custom);
@@ -1078,6 +1238,15 @@
 
   function beatMs() { return 60000 / state.bpm; }
 
+  // A bar of count-in, or two where a bar is too short to settle into — so
+  // 2/4 and 6/8 get four clicks rather than two, and 3/4 gets its three.
+  // Free has no bar, and counts in the four it always has.
+  function countInBeats() {
+    const sig = currentSig();
+    if (sig === FREE_SIG) return COUNT_IN_BEATS;
+    return sig.beats < 3 ? sig.beats * 2 : sig.beats;
+  }
+
   // What the browser says the whole output path costs. Chrome and Firefox
   // report the real figure and it moves when you pair a set of headphones;
   // Safari does not implement it at all, which is why there is a number to type.
@@ -1119,14 +1288,21 @@
     render();
   }
 
-  function tolMs() {
-    return Math.max(TIMING_TOLERANCE_MIN_MS, beatMs() * TIMING_TOLERANCE);
+  // Given a note, the window is also held inside that note and the one before
+  // it: two sixteenths are closer together than the plain tolerance is wide,
+  // and a window that reached past its neighbour would score the wrong note.
+  function tolMs(i) {
+    const t = Math.max(TIMING_TOLERANCE_MIN_MS, beatMs() * TIMING_TOLERANCE);
+    if (typeof i !== "number") return t;
+    const own = stepMs(i);
+    const before = i > 0 ? stepMs(i - 1) : own;
+    return Math.min(t, Math.min(own, before) / 2);
   }
 
-  // offset in ms relative to the note's own beat: negative early, positive late
-  function timingOf(offset) {
-    if (offset < -tolMs()) return "early";
-    if (offset > tolMs()) return "late";
+  // offset in ms relative to the note's own moment: negative early, positive late
+  function timingOf(offset, i) {
+    if (offset < -tolMs(i)) return "early";
+    if (offset > tolMs(i)) return "late";
     return "on";
   }
 
@@ -1141,66 +1317,89 @@
   // the plain clock it has always been.
   function startPatternClock(withCountIn) {
     stopPatternClock();
-    const step = () => {
-      const s = seq();
+    // Leave the note being played and take up the one due now, or finish the
+    // run when next is null.
+    const step = (next) => {
       const states = state.pStates.slice();
       const i = state.pIdx;
       if (states[i] !== "done" && states[i] !== "dirty") states[i] = "missed";
       stableName = null;
       stableCount = 0;
-      if (i + 1 >= s.length) {
-        state.pStates = states;
-        finishRun(states);
-        return;
-      }
       state.pStates = states;
-      state.pIdx = i + 1;
+      if (next === null) { finishRun(states); return; }
+      state.pIdx = next;
       beatAt = Date.now();
-      // the next note was already sounding before its beat arrived
+      // the next note was already sounding before its moment arrived
       if (pendingEarly !== null) {
         const offsets = state.pOffset.slice();
-        offsets[i + 1] = pendingEarly - beatAt;
+        offsets[next] = pendingEarly - beatAt;
         state.pOffset = offsets;
         const st2 = state.pStates.slice();
-        st2[i + 1] = "done";
+        st2[next] = "done";
         state.pStates = st2;
         pendingEarly = null;
       }
       render();
     };
 
-    const total = withCountIn ? COUNT_IN_BEATS : 0;
-    // The clock may be rebuilt part-way through a run, so the audio side counts
-    // notes from wherever the run has got to rather than from the beginning.
-    const startIdx = state.pIdx;
+    // Notes are no longer one to a beat, so the clock runs on the shortest of
+    // them — a sixteenth — and the beat is however many of those the signature
+    // makes it: four in 4/4, six in 6/8, eight in cut time. The click falls on
+    // the beat and leans on the first beat of each bar; the notes fall wherever
+    // their lengths put them.
+    const sig = currentSig();
+    const perBeat = Math.round(sig.beatQ / GRID_Q);
+    const perBar = sig === FREE_SIG ? 0 : sig.beats;
+    const beats = withCountIn ? countInBeats() : 0;
+    const countTicks = beats * perBeat;
+    // The clock may be rebuilt part-way through a run, so everything is counted
+    // in ticks from wherever the run has got to rather than from the beginning.
+    const o = onsets();
+    const from = o.at[state.pIdx] || 0;
+    const tickAt = o.at.map((b) => Math.round((b - from) * perBeat));
+    const endTick = Math.round((o.total - from) * perBeat);
     let n = 0;
 
     // The beat, as heard.
     const landed = (k) => {
-      if (k <= total) {
-        state.countIn = total - k + 1;
+      if (k <= countTicks) {
+        state.countIn = beats - Math.floor((k - 1) / perBeat);
         render();
         return;
       }
-      if (k === total + 1) {
+      const j = k - countTicks - 1;   // ticks since the run's first note
+      if (j === 0) {
         // downbeat — note one starts here
         state.countIn = 0;
         beatAt = Date.now();
         render();
         return;
       }
-      step();
+      if (j >= endTick) { step(null); return; }
+      const next = tickAt.indexOf(j);
+      if (next > 0) step(next);
     };
 
     // The beat, as played out.
     const onBeat = () => {
       n++;
       const k = n;
-      // Count-in beats click with the first accented, then the run's first note,
-      // then a plain click on each note after it. The beat that ends the run has
-      // no note left to mark, so it is silent.
-      const note = k <= total ? -1 : startIdx + (k - total - 1);
-      if (note < seq().length) tick(k <= total ? k === 1 : k === total + 1);
+      // A click on every beat, counting in and then through the run, with the
+      // first beat of each bar the accented one — and with no bar to count,
+      // only the very first of all, as it always was. The beat that ends the
+      // run has nothing left to mark, so it is silent.
+      if (k <= countTicks) {
+        if ((k - 1) % perBeat === 0) {
+          const beatNo = (k - 1) / perBeat;
+          tick(perBar ? beatNo % perBar === 0 : beatNo === 0);
+        }
+      } else {
+        const j = k - countTicks - 1;
+        if (j % perBeat === 0 && j < endTick) {
+          const beatNo = j / perBeat;
+          tick(perBar ? beatNo % perBar === 0 : beatNo === 0);
+        }
+      }
 
       const lag = lagMs();
       if (lag <= 0) { landed(k); return; }
@@ -1211,12 +1410,12 @@
       pBeatTimers.push(t);
     };
 
-    state.countIn = total;
+    state.countIn = beats;
     onBeat();
     // The first beat is not heard for a delay yet, so show the count-in now
     // rather than leaving the play prompt up until it lands.
     render();
-    pTimer = setInterval(onBeat, 60000 / state.bpm);
+    pTimer = setInterval(onBeat, quarterMs() * GRID_Q);
   }
 
   function stopPatternClock() {
@@ -1256,7 +1455,7 @@
     let early = 0, late = 0, on = 0, sum = 0, timed = 0;
     state.pOffset.forEach((o, i) => {
       if (o === null || st[i] === "missed") return;
-      const t = timingOf(o);
+      const t = timingOf(o, i);
       if (t === "early") early++;
       else if (t === "late") late++;
       else on++;
@@ -1353,10 +1552,11 @@
     // than a stray — hold it and score it when that beat arrives
     if (beatAt && i + 1 < sq.length &&
         name === NOTES[sq[i + 1]].name) {
-      // anything in the back half of this beat is the next note arriving early
+      // anything in the back of this note is the next one arriving early
       // rather than a stray; how early it was decides on/early below
-      const untilNextBeat = beatAt + beatMs() - Date.now();
-      if (untilNextBeat > 0 && untilNextBeat <= beatMs() * EARLY_CAPTURE) {
+      const held = stepMs(i);
+      const untilNext = beatAt + held - Date.now();
+      if (untilNext > 0 && untilNext <= held * EARLY_CAPTURE) {
         if (pendingEarly === null) pendingEarly = stableSince;
         return;
       }
@@ -1882,6 +2082,126 @@
     return s;
   }
 
+  const HEAD_RX = 8.4, HEAD_RY = 5.9;
+  const STEM_W = 1.8, STEM_LEN = 42;
+  const STAFF_LINES = [20, 32, 44, 56, 68];
+  // A staff space, which is what everything below is measured in: the lines
+  // sit twelve apart.
+  const SPACE = 12;
+  // A flag runs back about two and a half spaces up the stem, and a second one
+  // sits a space and an eighth above it — far enough that the two read as two
+  // hooks rather than one blot — so a note carrying two needs a longer stem to
+  // hang them from.
+  const FLAG_PITCH = SPACE * 1.125;
+
+  // How many beams — or, standing alone, flags — a length carries.
+  function beamsOf(d) {
+    const base = d === 0.75 || d === 1.5 ? d / 1.5 : d;
+    return base <= 0.25 ? 2 : base <= 0.5 ? 1 : 0;
+  }
+
+  // The tail on an eighth note, drawn from the foot of a downward stem: out and
+  // up in a long curve that tapers to a point, then back in to meet the stem
+  // again just above where it started. Written at the origin and moved into
+  // place, so a second one is the same shape further up the stem.
+  const FLAG_PATH = "M0 0 C3.6 -5 7.6 -10 8.8 -17 C9.8 -23 9.2 -27.5 7 -31.5" +
+    " C8.6 -25 6.6 -20 2.8 -14.5 C1.4 -12.4 0.4 -9.2 0 -6.5 z";
+
+  // A melody note, written at its length: filled up to a quarter and hollow
+  // from a half, no stem on a whole note, a flag for an eighth and two for a
+  // sixteenth, and a dot to the right of the head for the dotted lengths.
+  // Stems hang down on the left, which is where this staff has always put them.
+  //
+  // stemTo, where a beam has claimed the note, is the y the stem must reach;
+  // the beam is drawn by the group and the note goes without its flags.
+  function noteSvg(cx, y, d, fill, stemTo) {
+    const dotted = d === 0.75 || d === 1.5;
+    const base = dotted ? d / 1.5 : d;    // the length the dot extends
+    const hollow = base >= 2;
+    const stemmed = base < 4;
+    const flags = typeof stemTo === "number" ? 0 : beamsOf(d);
+    // a semibreve is a wider oval than the rest, having no stem to balance it
+    const rx = stemmed ? HEAD_RX : HEAD_RX * 1.15;
+    let out = '<ellipse cx="' + cx + '" cy="' + y + '" rx="' + rx + '" ry="' + HEAD_RY +
+      '" transform="rotate(-22 ' + cx + " " + y + ')" ' +
+      (hollow ? 'fill="none" stroke="' + fill + '" stroke-width="2.3"' : 'fill="' + fill + '"') +
+      "></ellipse>";
+    if (stemmed) {
+      const sx = cx - 8;
+      const foot = typeof stemTo === "number" ? stemTo : y + stemLen(d);
+      out += '<rect x="' + sx + '" y="' + y + '" width="' + STEM_W + '" height="' + (foot - y) +
+        '" fill="' + fill + '"></rect>';
+      // flags hang from the foot of the stem and stack up it
+      for (let k = 0; k < flags; k++) {
+        out += '<path transform="translate(' + (sx + STEM_W) + " " + (foot - k * FLAG_PITCH) +
+          ')" d="' + FLAG_PATH + '" fill="' + fill + '"></path>';
+      }
+    }
+    // a dot on a line note goes in the space above it, as it is written
+    if (dotted) {
+      const onLine = STAFF_LINES.indexOf(y) >= 0;
+      out += '<circle cx="' + (cx + rx + 5) + '" cy="' + (onLine ? y - 6 : y) +
+        '" r="2.3" fill="' + fill + '"></circle>';
+    }
+    return out;
+  }
+
+  // A note standing on its own carries the usual stem, lengthened by a space
+  // for each flag past the first so the tails all have stem to hang from.
+  function stemLen(d) {
+    return STEM_LEN + Math.max(0, beamsOf(d) - 1) * FLAG_PITCH;
+  }
+
+  const BEAM_H = 4.4;                    // thickness of one beam
+  const BEAM_PITCH = BEAM_H + 3.6;       // and the step up to the next one
+  const BEAM_MAX_SLOPE = 0.26;
+  const BEAM_STUB = SPACE * 0.95;
+
+  // Which notes are written under a shared beam.
+  //
+  // Beaming is how written music shows where the beats are, so the rules all
+  // come back to the beat. Only eighths and shorter can be beamed at all; a
+  // group runs from the start of a beat and stops at the end of it, never
+  // crossing into the next; and a note left alone inside its beat keeps its
+  // flag instead.
+  //
+  // Which is why the time signature matters here: the beat of a 6/8 is a
+  // dotted quarter, so its six eighths come out as the two groups of three a
+  // jig is written in, where in 3/4 the same six notes would be three pairs.
+  // With no signature the beat is a plain quarter, as it has always been.
+  function beamGroups(sq, beatQ) {
+    const unit = beatQ || 1;
+    const o = onsetsOf(sq);
+    const groups = [];
+    let cur = null;
+    const close = () => {
+      if (cur && cur.idx.length > 1) groups.push(cur);
+      cur = null;
+    };
+    sq.forEach((st, i) => {
+      const d = durOf(st);
+      const at = o.at[i];
+      const beat = Math.floor(at / unit + 1e-6);
+      if (!beamsOf(d)) { close(); return; }
+      if (!cur || cur.beat !== beat) { close(); cur = { beat: beat, idx: [] }; }
+      cur.idx.push(i);
+      // a note running past the end of its own beat carries the beam no further
+      if (at + d > (beat + 1) * unit + 1e-6) close();
+    });
+    close();
+    return groups;
+  }
+
+  // The two numerals after the clef. The top one sits over the top two spaces
+  // and the bottom one under the lower two, both centred on the middle line.
+  function sigSvg(sig, x, fill) {
+    if (sig === FREE_SIG) return "";
+    const num = (text, y) =>
+      '<text x="' + x + '" y="' + y + '" text-anchor="middle" font-size="27" ' +
+      'font-weight="700" font-family="Georgia, serif" fill="' + fill + '">' + text + "</text>";
+    return num(sig.top, 41) + num(sig.bottom, 65);
+  }
+
   function renderPatterns() {
     const s = state;
     const pat = currentPattern();
@@ -1903,14 +2223,18 @@
     if (s.saved.length) {
       groups.push({
         label: "Saved",
-        items: s.saved.map((v) => ({
-          id: SAVED_PREFIX + v.id, label: v.name, meta: metaOf(v.seq.length)
-        }))
+        items: s.saved.map((v) => {
+          const vs = sigById(v.sig);
+          return {
+            id: SAVED_PREFIX + v.id, label: v.name,
+            meta: metaOf(v.seq.length) + (vs === FREE_SIG ? "" : " · " + vs.label)
+          };
+        })
       });
     }
     // built once; selection is applied below by restyling the existing buttons
     // so the nodes stay clickable while the mic is re-rendering the page
-    const pickerSig = s.saved.map((v) => v.id + ":" + v.name).join(",");
+    const pickerSig = s.saved.map((v) => v.id + ":" + v.name + ":" + v.sig).join(",");
     setHtml(dom.patternGroups, "picker", pickerSig, () => groups.map((g) =>
       '<div class="pattern-group-row"><div class="pattern-group-label">' + esc(g.label) +
       '</div><div class="pattern-group-items">' +
@@ -1932,8 +2256,25 @@
     show(dom.customBuilder, pat.id === "custom");
     setOn(dom.tabBuildNotes, !s.buildGraces);
     setOn(dom.tabBuildGraces, s.buildGraces);
+    setHtml(dom.customSig, "customSig", "built", () => SIGNATURES.map((v) =>
+      '<button class="sig-btn" type="button" data-sig="' + v.id + '">' + v.label + "</button>"
+    ).join(""));
+    dom.customSig.querySelectorAll("[data-sig]").forEach((b) => {
+      setOn(b, b.dataset.sig === s.customSig);
+    });
+    show(dom.customDurs, !s.buildGraces);
     show(dom.customNotes, !s.buildGraces);
     show(dom.customGraces, s.buildGraces);
+    show(dom.noteBuildHint, !s.buildGraces);
+    show(dom.graceBuildHint, s.buildGraces);
+    setHtml(dom.customDurs, "customDurs", "built", () => DURATIONS.map((v) =>
+      '<button class="dur-btn" type="button" data-dur="' + v.d + '">' +
+      '<svg viewBox="2 4 30 72" aria-hidden="true">' + noteSvg(16, 14, v.d, "currentColor") +
+      "</svg><span>" + v.name + "</span></button>"
+    ).join(""));
+    dom.customDurs.querySelectorAll("[data-dur]").forEach((b) => {
+      setOn(b, Number(b.dataset.dur) === s.buildLen);
+    });
     setHtml(dom.customNotes, "customNotes", "built", () => NOTES.map((n, i) =>
       '<button class="custom-note-btn" data-add="' + i + '">' + n.name + "</button>"
     ).join(""));
@@ -1942,6 +2283,10 @@
     ).join(""));
 
     if (pat.id === "custom") {
+      dom.noteBuildHint.textContent =
+        "Tapping a note adds it as " + (/^[aeiou]/.test(durName(s.buildLen)) ? "an " : "a ") +
+        durName(s.buildLen) + " note" + heldFor(s.buildLen) +
+        ". Change the length above before you tap; Undo takes a note back off.";
       const lastStep = state.custom[state.custom.length - 1];
       dom.customGraces.querySelectorAll("[data-grace]").forEach((b) => { b.disabled = !lastStep; });
       dom.graceBuildHint.textContent = !lastStep
@@ -1979,46 +2324,217 @@
     // patterns wrap onto more, shorter rows.
     const perRow = maxG > 1 ? 3 : maxG === 1 ? 4 : 5;
     const gap = maxG > 1 ? 130 : maxG === 1 ? 104 : 92;
-    const startX = maxG > 1 ? 132 : maxG === 1 ? 104 : 72;
+    // The signature stands after the clef on every row, so the first note of
+    // each row moves along to make room for it.
+    const sig = currentSig();
+    const sigX = 54;
+    const sigRoom = sig === FREE_SIG ? 0 : 30;
+    const startX = (maxG > 1 ? 132 : maxG === 1 ? 104 : 72) + sigRoom;
     // The staff is only as wide as the notes on it, so a phone-width row is
-    // never mostly empty paper.
-    const staffW = startX + (perRow - 1) * gap + 40;
+    // never mostly empty paper. A final barline needs a little more.
+    const staffW = startX + (perRow - 1) * gap + (sig === FREE_SIG ? 40 : 54);
+
+    // Notes are spaced by how long they are held. Written music has never done
+    // that in strict proportion — a whole note would swallow the row — so the
+    // scale is compressed, and a note still gets whatever room its gracenotes
+    // need however short it is. A pattern of plain quarters lays out exactly as
+    // it always has: perRow notes to a row, gap apart.
+    const widthOf = (st) => {
+      const d = durOf(st);
+      const f = d >= 4 ? 1.7 : d >= 2 ? 1.4 : d >= 1.5 ? 1.2
+        : d >= 1 ? 1 : d >= 0.75 ? 0.86 : d >= 0.5 ? 0.74 : 0.62;
+      const g = (st.g || []).length;
+      return Math.max(gap * f, g > 1 ? g * G_SPACING + 46 : g === 1 ? 62 : 0);
+    };
+    // Beamed groups travel whole — a beam cannot be broken across two lines —
+    // so the row packer moves groups and lone notes rather than single notes.
+    const sq = steps();
+    const onset = onsetsOf(sq);
+    const groupOf = [];
+    beamGroups(sq, sig.beatQ).forEach((g, gi) => g.idx.forEach((i) => { groupOf[i] = gi; }));
+    const units = [];
+    sq.forEach((st, i) => {
+      const gi = groupOf[i];
+      const back = units[units.length - 1];
+      if (gi !== undefined && back && back.g === gi) back.idx.push(i);
+      else units.push({ g: gi, idx: [i] });
+    });
+
+    // Rows are filled until the next unit would run off the paper.
+    const lastX = startX + (perRow - 1) * gap;
+    const rows = [];
+    let row = [];
+    let x = startX;
+    units.forEach((u) => {
+      // where the unit's last note would land if it started here
+      const upto = u.idx.slice(0, -1).reduce((sum, i) => sum + widthOf(sq[i]), 0);
+      if (row.length && x + upto > lastX) { rows.push(row); row = []; x = startX; }
+      u.idx.forEach((i) => { row.push({ i: i, x: x }); x += widthOf(sq[i]); });
+    });
+    if (row.length) rows.push(row);
+
+    // Beam geometry, a row at a time. The beam is a single straight line under
+    // the group, sloped to follow the notes but held well short of the angle
+    // they make, and every stem in the group is drawn down to meet it.
+    const stemX = (cx) => cx - 8;
+    const stemTo = [];        // by note, where a beam has claimed the stem
+    const rowBeams = rows.map((chunk) => {
+      const runs = [];
+      const byGroup = new Map();
+      chunk.forEach((slot) => {
+        const gi = groupOf[slot.i];
+        if (gi === undefined) return;
+        if (!byGroup.has(gi)) byGroup.set(gi, []);
+        byGroup.get(gi).push(slot);
+      });
+      byGroup.forEach((mem) => {
+        if (mem.length < 2) return;   // nothing to join: the note keeps its flag
+        const xs = mem.map((m) => stemX(m.x));
+        const ys = mem.map((m) => NOTES[pseq[m.i]].y);
+        const last = mem.length - 1;
+        const span = xs[last] - xs[0];
+        let slope = span ? (ys[last] - ys[0]) / span : 0;
+        slope = Math.max(-BEAM_MAX_SLOPE, Math.min(BEAM_MAX_SLOPE, slope));
+        // and never more than two staff spaces of fall across the whole group
+        if (span && Math.abs(slope * span) > 2 * SPACE) {
+          slope = ((slope > 0 ? 2 : -2) * SPACE) / span;
+        }
+        // drop the line until even the shortest stem is a full stem long
+        let b0 = -Infinity;
+        ys.forEach((y, k) => { b0 = Math.max(b0, y + STEM_LEN - slope * (xs[k] - xs[0])); });
+        const beamY = (xx) => b0 + slope * (xx - xs[0]);
+        mem.forEach((m, k) => { stemTo[m.i] = beamY(xs[k]) + BEAM_H; });
+        const add = (i, xa, xb, level) => runs.push({
+          i: i, xa: xa, xb: xb,
+          ya: beamY(xa) - level * BEAM_PITCH, yb: beamY(xb) - level * BEAM_PITCH
+        });
+
+        // The beam is laid down a stretch at a time, each note taking the
+        // half of the line nearest it, so it fills in with its notes as a run
+        // goes past rather than standing in one colour over three others.
+        const edge = (k) => (k < 0 ? xs[0]
+          : k >= last ? xs[last] + STEM_W : (xs[k] + xs[k + 1]) / 2);
+        mem.forEach((m, k) => add(m.i, edge(k - 1), edge(k), 0));
+
+        // Beams past the first only join the notes that are short enough for
+        // them, so a run of sixteenths is joined twice over while a lone one
+        // gets a stub. The stub points into the half of the subdivision the
+        // note belongs to, which is what turns it back towards the dotted note
+        // of a dot-cut pair.
+        const lv = mem.map((m) => beamsOf(durOf(sq[m.i])));
+        const deepest = Math.max.apply(null, lv);
+        for (let b = 2; b <= deepest; b++) {
+          let k = 0;
+          while (k < mem.length) {
+            if (lv[k] < b) { k++; continue; }
+            let j = k;
+            while (j + 1 < mem.length && lv[j + 1] >= b) j++;
+            if (j > k) {
+              for (let q = k; q <= j; q++) {
+                add(mem[q].i, q === k ? xs[k] : edge(q - 1),
+                  q === j ? xs[j] + STEM_W : edge(q), b - 1);
+              }
+            } else {
+              const unit = 1 / Math.pow(2, b - 1);
+              const f = onset.at[mem[k].i] / unit;
+              let back = f - Math.floor(f + 1e-6) >= 0.5 - 1e-6;
+              if (k === 0) back = false;
+              if (k === last) back = true;
+              if (back) add(mem[k].i, xs[k] + STEM_W - BEAM_STUB, xs[k] + STEM_W, b - 1);
+              else add(mem[k].i, xs[k], xs[k] + BEAM_STUB, b - 1);
+            }
+            k = j + 1;
+          }
+        }
+      });
+      return runs;
+    });
+
+    // Bar lines, where the pattern is in a signature at all. A bar boundary
+    // is drawn in front of the note that opens the bar; where that note opens
+    // a row instead, the line goes at the end of the row before, which is
+    // where written music puts it. A bar the pattern never finishes gets no
+    // line, because there is nothing there to divide.
+    const rowBars = rows.map(() => []);
+    let endBar = null;
+    if (sig !== FREE_SIG && rows.length) {
+      const bar = barQ(sig);
+      const rowOf = [];
+      rows.forEach((chunk, r) => chunk.forEach((slot) => { rowOf[slot.i] = { r: r, x: slot.x }; }));
+      for (let q = bar; q < onset.total - 1e-6; q += bar) {
+        // the note that opens this bar, if a note opens it at all
+        const i = onset.at.findIndex((a) => Math.abs(a - q) < 1e-6);
+        if (i <= 0) continue;
+        const here = rowOf[i], before = rowOf[i - 1];
+        if (!here || !before) continue;
+        if (here.r !== before.r) { rowBars[before.r].push(staffW - 8); continue; }
+        // clear of the gracenotes leaning on the note the bar opens with
+        const gl = gracesAt(i);
+        const clear = gl.length > 1 ? 17 + (gl.length - 1) * G_SPACING + 10 : gl.length ? 34 : 12;
+        let bx = (before.x + here.x) / 2;
+        bx = Math.min(bx, here.x - clear);
+        rowBars[here.r].push(Math.max(bx, before.x + 14));
+      }
+      // and the line that closes the pattern off
+      const lastRow = rows[rows.length - 1];
+      const lastX2 = lastRow[lastRow.length - 1].x;
+      endBar = Math.min(lastX2 + 34, staffW - 10);
+    }
+
+    // Long stems and low notes both reach below the old fixed floor, so the
+    // paper is cut to whatever the notes on it actually need.
+    let vbBottom = 104;
+    rows.forEach((chunk) => chunk.forEach((slot) => {
+      const foot = typeof stemTo[slot.i] === "number"
+        ? stemTo[slot.i]
+        : NOTES[pseq[slot.i]].y + stemLen(durOf(sq[slot.i]));
+      vbBottom = Math.max(vbBottom, foot + 6);
+    }));
+
     const staffSig = [
-      s.patternId, s.theme,
-      // notes and their gracenotes, so edits in the builder redraw
-      steps().map((st) => st.n + ":" + st.g.join("-")).join(","),
+      s.patternId, s.theme, sig.id,
+      // notes, their gracenotes and their lengths, so edits in the builder redraw
+      steps().map((st) => st.n + ":" + st.g.join("-") + ":" + durOf(st)).join(","),
       s.pIdx, s.runDone, s.bpm, s.demoing, s.demoIdx,
       s.pStates.join(","), s.pCross.join(","), s.pOffset.join(",")
     ].join("|");
+    // What a note is written in, given how the run has treated it.
+    const fillOf = (abs) => {
+      const t = T();
+      const st = s.pStates[abs] || "pending";
+      const off = s.pOffset[abs];
+      const timing = (st === "done" || st === "dirty") && off !== null ? timingOf(off, abs) : null;
+      const isNow = s.demoing ? abs === s.demoIdx : (abs === s.pIdx && !s.runDone);
+      const hitFill = timing === "early" ? t.early : timing === "late" ? t.late : t.good;
+      return st === "done" ? hitFill : st === "dirty" ? t.bad
+        : st === "missed" ? t.missed : isNow ? t.ink : t.dim;
+    };
+
     const buildRows = () => {
     let rowsHtml = "";
-    for (let r = 0; r < pseq.length; r += perRow) {
-      const chunk = pseq.slice(r, r + perRow);
+    rows.forEach((chunk, r) => {
       let notesSvg = "";
       let labelsHtml = "";
-      chunk.forEach((ni, k) => {
-        const n = NOTES[ni];
-        const abs = r + k;
+      chunk.forEach((slot) => {
+        const abs = slot.i;
+        const n = NOTES[pseq[abs]];
         const st = s.pStates[abs] || "pending";
         const isNow = s.demoing ? abs === s.demoIdx : (abs === s.pIdx && !s.runDone);
-        const cx = startX + k * gap;
+        const cx = slot.x;
         // on the beat, a hit note is coloured by its timing
         const off = s.pOffset[abs];
-        const timing = (st === "done" || st === "dirty") && off !== null ? timingOf(off) : null;
+        const timing = (st === "done" || st === "dirty") && off !== null ? timingOf(off, abs) : null;
         const t = T();
         const hitFill = timing === "early" ? t.early
           : timing === "late" ? t.late : t.good;
-        const fill = st === "done" ? hitFill : st === "dirty" ? t.bad
-          : st === "missed" ? t.missed : isNow ? t.ink : t.dim;
+        const fill = fillOf(abs);
         notesSvg += '<circle cx="' + cx + '" cy="' + n.y + '" r="15" fill="' +
           (isNow ? t.halo : "transparent") + '"></circle>';
         if (n.ledger) {
           notesSvg += '<line x1="' + (cx - 15) + '" y1="8" x2="' + (cx + 15) +
             '" y2="8" stroke="' + fill + '" stroke-width="1.1"></line>';
         }
-        notesSvg += '<ellipse cx="' + cx + '" cy="' + n.y + '" rx="8.4" ry="5.9" transform="rotate(-22 ' +
-          cx + " " + n.y + ')" fill="' + fill + '"></ellipse>';
-        notesSvg += '<rect x="' + (cx - 8) + '" y="' + n.y + '" width="1.8" height="42" fill="' + fill + '"></rect>';
+        notesSvg += noteSvg(cx, n.y, durOf(sq[abs]), fill, stemTo[abs]);
         const gl = gracesAt(abs);
         if (gl.length) notesSvg += graceGroupSvg(cx - (gl.length > 1 ? 17 : 24), gl, fill);
         if (s.pCross[abs]) {
@@ -2036,23 +2552,53 @@
             '%; color: ' + (st === "dirty" ? t.bad : hitFill) + ';">' + offLabel + "</div>";
         }
       });
-      // beamed groups reach well above the top line, so those rows get extra
+      // Bar lines sit behind everything else on the row, in their own ink —
+      // darker than the staff, so one capping the end of a row still reads as
+      // a line rather than as the paper running out. The last row is closed
+      // off with the thin-then-thick pair that ends a piece of music, and the
+      // staff itself stops there, which is where printed music stops it.
+      const isLastRow = endBar !== null && r === rows.length - 1;
+      const lineEnd = isLastRow ? endBar + 4 : staffW - 8;
+      const barInk = T().bar;
+      let barsSvg = "";
+      rowBars[r].forEach((bx) => {
+        barsSvg += '<line x1="' + bx.toFixed(1) + '" y1="20" x2="' + bx.toFixed(1) +
+          '" y2="68" stroke="' + barInk + '" stroke-width="1.8"></line>';
+      });
+      if (isLastRow) {
+        barsSvg += '<line x1="' + (endBar - 5) + '" y1="20" x2="' + (endBar - 5) +
+          '" y2="68" stroke="' + barInk + '" stroke-width="1.8"></line>' +
+          '<rect x="' + endBar + '" y="20" width="4" height="48" fill="' + barInk + '"></rect>';
+      }
+      // Beams go on last so they lie cleanly over the stems they join.
+      rowBeams[r].forEach((b) => {
+        notesSvg += '<polygon points="' +
+          [[b.xa, b.ya], [b.xb, b.yb], [b.xb, b.yb + BEAM_H], [b.xa, b.ya + BEAM_H]]
+            .map((pt) => pt[0].toFixed(2) + "," + pt[1].toFixed(2)).join(" ") +
+          '" fill="' + fillOf(b.i) + '"></polygon>';
+      });
+      // gracenote groups reach well above the top line, so those rows get extra
       // headroom rather than running into the row above
-      const vb = maxG > 1 ? "0 -22 " + staffW + " 126" : "0 0 " + staffW + " 104";
+      const vbTop = maxG > 1 ? -22 : 0;
+      const vb = "0 " + vbTop + " " + staffW + " " + (vbBottom - vbTop);
       rowsHtml += '<div class="staff-row"><svg viewBox="' + vb + '">' +
         '<g stroke="' + T().staff + '" stroke-width="1.1">' +
         [20, 32, 44, 56, 68].map((y) =>
-          '<line x1="10" y1="' + y + '" x2="' + (staffW - 8) + '" y2="' + y + '"></line>').join("") +
+          '<line x1="10" y1="' + y + '" x2="' + lineEnd + '" y2="' + y + '"></line>').join("") +
         '</g><text x="16" y="66" font-family="\'Noto Music\', serif" font-size="42" fill="' +
         T().clef + '">&#119070;</text>' +
+        sigSvg(sig, sigX, T().clef) + barsSvg +
         notesSvg + '</svg><div class="staff-labels">' + labelsHtml + "</div></div>";
-    }
+    });
     return rowsHtml;
     };
     setHtml(dom.staffRows, "staff", staffSig, buildRows);
     show(dom.staffPanel, pseq.length > 0);
 
     const nowName = pseq.length && !s.runDone ? (NOTES[pseq[s.pIdx]] || NOTES[0]).name : "";
+    const nowDur = durOf(steps()[s.pIdx]);
+    // a pattern of one note to a beat is still one note to a beat, and says so
+    const evenBeat = sq.length > 0 && sq.every((st) => durOf(st) === sig.beatQ);
     let statusLine;
     if (s.micError) statusLine = "The microphone is blocked — allow it in your browser settings, then try again.";
     else if (!pseq.length) statusLine = "Tap notes above to build a pattern.";
@@ -2081,7 +2627,11 @@
       }
     }
     else if (s.countIn > 0) statusLine = "Count-in — " + s.countIn + ". First note is " + nowName + ".";
-    else if (!s.pPlaying) statusLine = "Tap Test mode — one note a beat, and the note has to sound on its beat to count.";
+    else if (!s.pPlaying) statusLine = evenBeat
+      ? "Tap Test mode — one note a beat, and the note has to sound on its beat to count."
+      : "Tap Test mode — the click keeps the beat" +
+        (sig === FREE_SIG ? "" : ", accented on the first of each bar") +
+        ", and each note has to sound where its length puts it.";
     else if (hasGrace && (steps()[s.pIdx] || {}).move) {
       statusLine = "Play the " + steps()[s.pIdx].move + " on " + nowName + ".";
     }
@@ -2090,7 +2640,9 @@
       statusLine = "Play " + nowName + " with " + (/^[AEF]/.test(gName) ? "an " : "a ") +
         gName + " gracenote.";
     }
-    else statusLine = "Play " + nowName + ". A red dot appears above a note if anything else sounds on the way into it.";
+    else statusLine = "Play " + nowName +
+      (nowDur === sig.beatQ ? "" : heldFor(nowDur)) +
+      ". A red dot appears above a note if anything else sounds on the way into it.";
     dom.statusLine.textContent = statusLine;
 
     // Be straight about what the mic can and cannot judge here.
@@ -3033,6 +3585,14 @@
     if (!btn) return;
     state.pickerOpen = false;
     pickPattern(btn.dataset.pattern);
+  });
+  dom.customSig.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sig]");
+    if (btn) setCustomSig(btn.dataset.sig);
+  });
+  dom.customDurs.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-dur]");
+    if (btn) { state.buildLen = Number(btn.dataset.dur); render(); }
   });
   dom.customNotes.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-add]");

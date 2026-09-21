@@ -57,9 +57,39 @@ remembered per device. The browser's own chrome follows it.
   note — one gets three flags, two or more are beamed together automatically.
   Name one to **save** it; saved patterns appear in the picker under "Saved" and
   persist between visits
-- Every run is a metronome drill with a 4-beat count-in, where each note must
-  sound on its own beat. Notes are marked green (on the beat), blue (early) or
-  amber (late), with the offset in milliseconds
+- Each note you add is given a **length** — sixteenth, eighth, dotted eighth,
+  quarter, dotted quarter, half or whole. Pick the length before you tap the
+  note. Notes are written at their length (hollow from a half up, no stem on a
+  whole, flags on the short ones, a dot where there is one) and spaced on the
+  staff by how long they are held. Everything built before lengths existed, and
+  every built-in pattern, is a pattern of quarter notes
+- A pattern of your own has a **time signature** — 2/4, 3/4, 4/4, 2/2, 6/8,
+  9/8 or 12/8, starting at 4/4 — or can be set to **Free**, which is where the
+  built-in drills stay, since they are runs rather than tunes, and where
+  anything saved before signatures existed stays too. The
+  signature is written after the clef on every row, bar lines are drawn where
+  the bars fall, and a thin-then-thick pair closes the pattern off. The beat
+  becomes whatever the signature counts: a quarter in the simple meters, a
+  dotted quarter in 6/8, 9/8 and 12/8, a half in cut time — so the tempo, the
+  click and the count-in are all in that beat, and in 6/8 an eighth is a third
+  of it
+- Eighths and shorter are **beamed** the way written music beams them, because
+  beaming is what shows a reader where the beats are: a group runs from the
+  start of a beat and stops at the end of it, never crossing into the next, and
+  a note left on its own inside its beat keeps its flag instead. Which is where
+  the signature earns its keep — six eighths come out as two groups of three in
+  6/8 and as three pairs in 3/4, from the same six notes. Beams past the first
+  only join the notes short enough to need them, so the odd sixteenth of a
+  dot-cut pair gets a stub pointing back at the dotted note it shares the beat
+  with. The beam is sloped to follow the notes, held well short of the angle
+  they make, and takes each note's colour as a run goes past it
+- Every run is a metronome drill counted in for a bar — two where a bar is
+  shorter than three beats, and four plain beats where there is no signature.
+  The click keeps the beat and leans on the first beat of each bar, and each
+  note must sound where its length puts it. Notes are marked green (on the
+  beat), blue (early) or amber (late), with the offset in milliseconds. A short
+  note has a narrower window than a long one, so two sixteenths can never be
+  scored against each other
 - A red dot marks a stray note sounded on the way into a note
 - **Bluetooth** takes the headphone delay out of the scoring. Wireless
   headphones hold the click for a fifth of a second or so before it reaches you,

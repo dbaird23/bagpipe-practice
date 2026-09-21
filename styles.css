@@ -759,6 +759,54 @@ html[data-theme="dark"] .chanter-img { mix-blend-mode: screen; filter: invert(1)
   white-space: nowrap;
 }
 
+/* The time signature, which the whole pattern is in — so it sits above the
+   note-by-note controls rather than among them. */
+.sig-row { display: flex; flex-direction: column; gap: 8px; }
+.sig-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.sig-btn {
+  flex: 1 1 70px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--bd2);
+  border-radius: 999px;
+  background: var(--sf);
+  color: var(--mut);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.sig-btn.is-on { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+
+/* How long each note is held. The buttons carry the note as it will be
+   written, because that is what you are picking. */
+.dur-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.dur-row[hidden] { display: none; }
+
+.dur-btn {
+  flex: 1 1 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 8px 4px 7px;
+  border: 1px solid var(--bd2);
+  border-radius: 10px;
+  background: var(--sf);
+  color: var(--mut);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.dur-btn svg { display: block; width: 14px; height: 34px; overflow: visible; }
+.dur-btn.is-on { border-color: var(--ink); background: var(--sf2); color: var(--ink); }
+
 .note-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
