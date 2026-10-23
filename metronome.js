@@ -65,7 +65,9 @@
     clickSound: "click",
     volume: 0.8,
     refHz: 235,
-    minBpm: 30,
+    // 10 is six seconds a beat: slower than any tune is played, and exactly
+    // what somebody learning a movement one finger at a time needs.
+    minBpm: 10,
     maxBpm: 240
   };
 
@@ -339,7 +341,7 @@
   // use site.
   function normalizeConfig(raw) {
     const c = raw && typeof raw === "object" ? raw : {};
-    const minBpm = clampInt(c.minBpm, 20, 400, DEFAULTS.minBpm);
+    const minBpm = clampInt(c.minBpm, 10, 400, DEFAULTS.minBpm);
     const maxBpm = Math.max(minBpm + 1, clampInt(c.maxBpm, 20, 400, DEFAULTS.maxBpm));
     const beatsPerBar = clampInt(c.beatsPerBar, 1, 16, DEFAULTS.beatsPerBar);
     const subdivision = subdivisionOf(c);

@@ -416,6 +416,9 @@ button, .tab, .seg, .chip, .label, .beat-dots { -webkit-user-select: none; user-
   transition: background 140ms, border-color 140ms, color 140ms;
 }
 .chip-grow { flex: 1; }
+/* A note head inside a chip or a readout. It sits a shade larger than the
+   label beside it because music glyphs are drawn small on their em. */
+.music-glyph { font-family: 'Noto Music', serif; font-size: 15px; }
 .chip.is-on,
 .metro-preset.is-selected {
   border-color: var(--ink);

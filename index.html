@@ -260,11 +260,32 @@
       <div class="panel">
         <div class="stepper-row">
           <button id="btnMetroBpmDown" class="step-btn" type="button" aria-label="Slower">&minus;</button>
-          <input id="metroBpmRange" class="flex-range" type="range" min="30" max="240" step="1" value="72" aria-label="Tempo in beats per minute">
+          <input id="metroBpmRange" class="flex-range" type="range" min="10" max="240" step="1" value="72" aria-label="Tempo in beats per minute">
           <button id="btnMetroBpmUp" class="step-btn" type="button" aria-label="Faster">+</button>
           <input id="metroBpmInput" class="num-input" type="text" inputmode="numeric" value="72" title="Click to type a tempo" aria-label="Tempo, type a number">
         </div>
         <button id="btnMetroTap" class="tap-btn" type="button">Tap tempo</button>
+      </div>
+
+      <!-- The two things you change most after the tempo, so they are on this
+           screen rather than in Settings: how many beats are in the bar, and
+           which note value you want clicked. Settings keeps the same controls
+           for anyone who is already in there. -->
+      <div class="panel">
+        <div class="label">The bar</div>
+        <div class="chip-row" id="metroTimeSigMain">
+          <button class="chip chip-grow" type="button" data-val="2/4">2/4</button>
+          <button class="chip chip-grow" type="button" data-val="3/4">3/4</button>
+          <button class="chip chip-grow" type="button" data-val="4/4">4/4</button>
+          <button class="chip chip-grow" type="button" data-val="2/2">2/2</button>
+          <button class="chip chip-grow" type="button" data-val="6/8">6/8</button>
+          <button class="chip chip-grow" type="button" data-val="9/8">9/8</button>
+          <button class="chip chip-grow" type="button" data-val="12/8">12/8</button>
+        </div>
+        <div class="setting-title">What you hear</div>
+        <!-- Built by app.js: which note values exist depends on the bar. -->
+        <div class="chip-row" id="metroNoteValue"></div>
+        <p class="footnote footnote-left" id="metroNoteValueHelp"></p>
       </div>
 
       <div class="panel">
@@ -374,7 +395,7 @@
         <button class="chip" type="button" data-val="4">4</button>
         <button class="chip" type="button" data-val="6">6</button>
       </div>
-      <p class="footnote footnote-left">Quieter clicks in the gaps between the beats. Leave it off while you are still learning to land on the beat.</p>
+      <p class="footnote footnote-left">Quieter clicks in the gaps between the beats. The metronome screen says the same thing in note values. Leave it off while you are still learning to land on the beat.</p>
       <div class="switch-row">
         <div class="switch-text">
           <div class="switch-title">Just the beat</div>
@@ -469,7 +490,7 @@
         </div>
         <div class="stepper-row">
           <div class="stepper-label">Up to</div>
-          <input id="metroRampMax" class="num-input num-input-wide" type="number" min="30" max="240" step="1" value="120" inputmode="numeric" aria-label="Highest tempo">
+          <input id="metroRampMax" class="num-input num-input-wide" type="number" min="10" max="240" step="1" value="120" inputmode="numeric" aria-label="Highest tempo">
           <div class="stepper-unit">BPM</div>
         </div>
       </div>

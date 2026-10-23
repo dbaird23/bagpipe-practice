@@ -120,13 +120,21 @@ remembered per device. The browser's own chrome follows it.
   minute beside it. Piping sources disagree about tempo numbers mostly because
   they count different units: a reel is in cut time at half notes, so a reel at
   86 covers 43 bars a minute while a strathspey at 116 covers 29
-- Tap tempo, count-in and volume
+- Tap tempo, count-in and volume. The tempo goes down to **10 BPM** — six
+  seconds a beat, which is what learning a movement one finger at a time needs
+- **The bar** sits on the metronome screen itself: the time signature — 2/4,
+  3/4, 4/4, 2/2, 6/8, 9/8, 12/8 — and what you hear inside each beat, named as
+  note values rather than as numbers. Which values are offered follows the bar,
+  because a quarter-note beat splits in two and a dotted-quarter beat in three:
+  4/4 offers quarters, eighths, triplets and sixteenths, 6/8 offers dotted
+  quarters, eighths and sixteenths, and cut time counts half notes. Changing the
+  time signature keeps the note value you were hearing wherever it still exists
 - Tap a beat on the ring to cycle it through strong, normal, soft and silent
-- The dial itself carries only the tempo and the tune type. Everything else it
-  can be told to do — time signature, accents, subdivision, pointing, beat
-  stretch, silent bars, tempo ramp, drone, click sound, screen flash and
-  haptics — lives on the **Settings** tab, with a line on the metronome saying
-  which of them are switched on
+- The dial itself carries the tempo, the bar and the tune type. Everything else
+  it can be told to do — accents, pointing, beat stretch, silent bars, tempo
+  ramp, drone, click sound, screen flash and haptics — lives on the
+  **Settings** tab, with a line on the metronome saying which of them are
+  switched on
 - **Pointing** is how unevenly a pair of notes is played. The middle of the
   slider is round — both notes the same length — and 75 is the written dot of a
   2/4 march. Below the middle it flips into the short-then-long Scots snap a

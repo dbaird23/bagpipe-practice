@@ -233,6 +233,13 @@
 
   const METRO_KEY = "bagpipe.metronome.v1";
   const METRO_SPEEDS = ["Slow", "Working", "Target"];
+
+  // The slowest tempo anything in the app will play. Six seconds a beat is far
+  // below any tune, which is the point: a movement you cannot play at all is
+  // learned a finger at a time, and the click has to be able to wait for you.
+  // It is forced onto the engine at startup so a tempo floor stored from an
+  // older version does not survive the update.
+  const METRO_BPM_MIN = 10;
   const ACCENT_CLASS = ["is-silent", "is-soft", "is-normal", "is-strong"];
   const ACCENT_WORD = ["Silent", "Soft", "Normal", "Strong"];
 
@@ -762,6 +769,9 @@
     metroVolume: el("metroVolume"),
     metroVolumeVal: el("metroVolumeVal"),
     metroTimeSig: el("metroTimeSig"),
+    metroTimeSigMain: el("metroTimeSigMain"),
+    metroNoteValue: el("metroNoteValue"),
+    metroNoteValueHelp: el("metroNoteValueHelp"),
     metroSubdivision: el("metroSubdivision"),
     metroAccents: el("metroAccents"),
     metroPointing: el("metroPointing"),
@@ -1988,7 +1998,7 @@
 
   function setBpm(v) {
     if (!Number.isFinite(v)) { render(); return; }
-    state.bpm = Math.min(160, Math.max(30, Math.round(v)));
+    state.bpm = Math.min(160, Math.max(METRO_BPM_MIN, Math.round(v)));
     render();
     if (state.playing) startClock();
     // Rebuilding the clock mid-run keeps the run going; if the tempo changed
@@ -2791,6 +2801,60 @@
       help: "The tempo counts quarter notes (crotchets)." };
   }
 
+  // What you can have clicked inside a beat, said in note values rather than in
+  // numbers. k is the engine's subdivision — onsets per beat — so each entry is
+  // one multiplication rather than a theory: which note values exist at all
+  // depends on what the beat is, because a quarter note splits in two and a
+  // dotted quarter in three. There is no sixteenth note in cut time because
+  // that would be eight onsets a beat and the engine stops at six, which is
+  // honest: nobody practises a reel against sixteenths at the minim.
+  const NOTE_VALUES = {
+    simple: [
+      { k: 1, label: "Quarter notes", glyph: "♩" },
+      { k: 2, label: "Eighth notes", glyph: "♫" },
+      { k: 3, label: "Triplets", glyph: "♪♪♪" },
+      { k: 4, label: "Sixteenth notes", glyph: "♬" },
+      { k: 6, label: "Sextuplets", glyph: "♬", rare: true }
+    ],
+    cut: [
+      { k: 1, label: "Half notes", glyph: "𝅗𝅥" },
+      { k: 2, label: "Quarter notes", glyph: "♩" },
+      { k: 4, label: "Eighth notes", glyph: "♫" }
+    ],
+    compound: [
+      { k: 1, label: "Dotted quarters", glyph: "♩." },
+      { k: 3, label: "Eighth notes", glyph: "♫" },
+      { k: 6, label: "Sixteenth notes", glyph: "♬" }
+    ]
+  };
+
+  const NOTE_VALUE_HELP = {
+    simple: "The beat is a quarter note. Eighths and sixteenths fill the gaps between the beats with quieter clicks; triplets split the beat three ways.",
+    cut: "In cut time the beat is a half note, so quarter notes already give you two clicks a beat and eighths give four.",
+    compound: "In 6/8, 9/8 and 12/8 the beat is a dotted quarter, so it divides into three eighth notes rather than two."
+  };
+
+  function metroBeatKind(c) {
+    return c.compound ? "compound" : c.beatUnit === 2 ? "cut" : "simple";
+  }
+
+  // The odd divisions stay out of the row until something asks for one — a
+  // preset can, and then the row still has to be able to show where it is.
+  function metroNoteValues(c) {
+    return NOTE_VALUES[metroBeatKind(c)].filter((v) => !v.rare || v.k === c.subdivision);
+  }
+
+  function metroNoteValue(c) {
+    const found = NOTE_VALUES[metroBeatKind(c)].filter((v) => v.k === c.subdivision);
+    return found.length ? found[0] : { k: c.subdivision, label: c.subdivision + " a beat", glyph: "" };
+  }
+
+  function buildNoteValues(c) {
+    return metroNoteValues(c).map((v) =>
+      '<button class="chip chip-grow" type="button" data-val="' + v.k + '" aria-pressed="false">' +
+      '<span class="music-glyph">' + v.glyph + "</span> " + v.label + "</button>").join("");
+  }
+
   function barsPerMin(c) {
     const bars = c.bpm / Math.max(1, c.beatsPerBar);
     return Math.abs(bars - Math.round(bars)) < 0.05 ? String(Math.round(bars)) : bars.toFixed(1);
@@ -2894,22 +2958,41 @@
     setMetro({ accents: accents });
   }
 
-  function setMetroSubdivision(k) {
+  // Moving into a denser subdivision can leave the pointing where the onsets
+  // would land on top of each other, so it comes back into range with it.
+  function clampedPointing(k, pointing) {
     const range = metroPointRange(k);
-    const p = pointScalar(metroConfig().pointing);
-    const clamped = Math.min(range[1] / 100, Math.max(range[0] / 100, p));
-    // Moving into a denser subdivision can leave the pointing where the onsets
-    // would land on top of each other, so it comes back into range with it.
-    setMetro({ subdivision: k, pointing: clamped });
+    const p = pointScalar(pointing);
+    return Math.min(range[1] / 100, Math.max(range[0] / 100, p));
+  }
+
+  function setMetroSubdivision(k) {
+    setMetro({ subdivision: k, pointing: clampedPointing(k, metroConfig().pointing) });
+  }
+
+  // Switching the bar keeps the note value you were hearing wherever that value
+  // still exists: eighth notes stay eighth notes when 4/4 becomes 6/8, even
+  // though the engine's subdivision has to go from two to three to say so.
+  // Where it does not exist — sixteenths in cut time — it falls back to the
+  // plain beat rather than to whatever number happened to be set.
+  function carryNoteValue(c, kind) {
+    const want = metroNoteValue(c).label;
+    const match = NOTE_VALUES[kind].filter((v) => v.label === want);
+    return match.length ? match[0].k : 1;
   }
 
   function metroTimeSigChange(v) {
     const parts = String(v).split("/");
     const n = Math.max(1, Math.round(Number(parts[0])) || 4);
     const d = Number(parts[1]);
-    if (d === 8) setMetro({ beatsPerBar: Math.max(1, Math.round(n / 3)), compound: true, beatUnit: "dotted4" });
-    else if (d === 2) setMetro({ beatsPerBar: n, compound: false, beatUnit: 2 });
-    else setMetro({ beatsPerBar: n, compound: false, beatUnit: 4 });
+    const kind = d === 8 ? "compound" : d === 2 ? "cut" : "simple";
+    const bar = kind === "compound"
+      ? { beatsPerBar: Math.max(1, Math.round(n / 3)), compound: true, beatUnit: "dotted4" }
+      : { beatsPerBar: n, compound: false, beatUnit: kind === "cut" ? 2 : 4 };
+    const k = carryNoteValue(metroConfig(), kind);
+    bar.subdivision = k;
+    bar.pointing = clampedPointing(k, metroConfig().pointing);
+    setMetro(bar);
   }
 
   function syncMetroRef() {
@@ -3184,7 +3267,19 @@
     dom.metroVolumeVal.textContent = Math.round(m.volume * 100);
 
     chipGroup(dom.metroTimeSig, sigOf);
+    chipGroup(dom.metroTimeSigMain, sigOf);
     chipGroup(dom.metroSubdivision, c.subdivision);
+
+    // The note-value chips are rebuilt only when the bar changes under them,
+    // since that is the only thing that changes which values there are.
+    if (dom.metroNoteValue) {
+      setHtml(dom.metroNoteValue, "metroNoteValue",
+        metroBeatKind(c) + ":" + c.subdivision, () => buildNoteValues(c));
+      chipGroup(dom.metroNoteValue, c.subdivision);
+    }
+    if (dom.metroNoteValueHelp) {
+      dom.metroNoteValueHelp.textContent = NOTE_VALUE_HELP[metroBeatKind(c)];
+    }
 
     const accentSig = n + ":" + c.accents.join(",");
     setHtml(dom.metroAccents, "metroAccents", accentSig, () => buildAccents(c.accents));
@@ -3227,7 +3322,6 @@
     // else that is switched on is summarised there and edited in Settings.
     if (dom.metroExtras) {
       const extras = [];
-      if (c.subdivision > 1) extras.push(c.subdivision + " clicks a beat");
       const point = Math.round(pointScalar(c.pointing) * 100);
       if (c.subdivision > 1 && point !== 50) {
         extras.push((point > 50 ? "pointed " : "snap ") + point);
@@ -3246,7 +3340,7 @@
       if (m.haptics) extras.push("buzz");
       dom.metroExtras.textContent = extras.length
         ? extras.join(" · ")
-        : "Nothing — a plain click, one a beat.";
+        : "Nothing else — just the bar and the clicks set above.";
     }
   }
 
@@ -3658,7 +3752,8 @@
       onBar: metroOnBar,
       onTempoChange: metroOnTempo,
       onStop: metroOnStop,
-      config: Object.assign({}, state.metro.config || {}, { refHz: state.refA })
+      config: Object.assign({}, state.metro.config || {},
+        { refHz: state.refA, minBpm: METRO_BPM_MIN })
     });
 
     // The engine validates whatever came out of storage, so its own copy is the
@@ -3741,10 +3836,19 @@
       render();
     });
 
-    dom.metroTimeSig.addEventListener("click", (e) => {
-      const b = e.target.closest("[data-val]");
-      if (b) metroTimeSigChange(b.dataset.val);
+    [dom.metroTimeSig, dom.metroTimeSigMain].forEach((row) => {
+      if (!row) return;
+      row.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-val]");
+        if (b) metroTimeSigChange(b.dataset.val);
+      });
     });
+    if (dom.metroNoteValue) {
+      dom.metroNoteValue.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-val]");
+        if (b) setMetroSubdivision(Number(b.dataset.val));
+      });
+    }
     dom.metroSubdivision.addEventListener("click", (e) => {
       const b = e.target.closest("[data-val]");
       if (b) setMetroSubdivision(Number(b.dataset.val));
